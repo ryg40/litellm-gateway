@@ -1,0 +1,412 @@
+{
+  "model_list": [
+    {
+      "model_name": "codex1/gpt-6-luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6-luna",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 0.0000001,
+        "output_cost_per_token": 0.0000005,
+        "cache_read_input_token_cost": 0.00000001,
+        "cache_creation_input_token_cost": 0.000000125,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex1/luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex1/gpt-6.1-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6.1-sol",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.00001,
+        "cache_read_input_token_cost": 0.0000001,
+        "cache_creation_input_token_cost": 0.0000025,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex1/sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex1/gpt-6-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6-sol",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6-sol",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.00001,
+        "cache_read_input_token_cost": 0.0000002,
+        "cache_creation_input_token_cost": 0.0000025,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex1/astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex1/gpt-6-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6-luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6.1-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6-luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6-sol",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6.1-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex-auto/luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6-luna",
+      "litellm_params": {
+        "model": "openai/gpt-6-luna",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6.1-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6-astra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    }
+  ],
+  "router_settings": {
+    "max_fallbacks": 2,
+    "fallbacks": [
+      {
+        "codex-auto/astra": [
+          "codex3/astra",
+          "codex1/astra"
+        ]
+      },
+      {
+        "codex-auto/sol": [
+          "codex3/sol",
+          "codex1/sol"
+        ]
+      },
+      {
+        "codex-auto/luna": [
+          "codex3/luna",
+          "codex1/luna"
+        ]
+      },
+      {
+        "codex-auto/gpt-6-astra": [
+          "codex3/gpt-6-astra",
+          "codex1/gpt-6-astra"
+        ]
+      },
+      {
+        "codex-auto/gpt-6-sol": [
+          "codex3/gpt-6-sol",
+          "codex1/gpt-6-sol"
+        ]
+      },
+      {
+        "codex-auto/gpt-6.1-sol": [
+          "codex3/gpt-6.1-sol",
+          "codex1/gpt-6.1-sol"
+        ]
+      },
+      {
+        "codex-auto/gpt-6-luna": [
+          "codex3/gpt-6-luna",
+          "codex1/gpt-6-luna"
+        ]
+      }
+    ]
+  }
+}

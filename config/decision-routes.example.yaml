@@ -1,0 +1,52 @@
+# Decision router for the virtual model "auto". Read by decision_router.py.
+# Example with generic model names. A host copies it to .local/config/decision-routes.yaml
+# and uses the model names of its gateway file (docs/decision-router.md).
+# Change routes and question text here; no code change is needed. Restart the gateway after an edit.
+
+virtual_model: auto
+
+decision:
+  url: http://decision-service:8000/v1/systemone   # the decision service of the host; target latency 50 ms
+  key_env: DECISION_API_KEY
+  timeout_s: 0.15                     # on timeout or error: default_model
+  max_chars: 2000                     # only the end of the last user message is sent
+
+default_model: local/general-model
+min_confidence: 0.5                   # route confidence below this: default_model, and the log marks it for review
+
+private:
+  threshold: 0.5                      # private >= threshold: never a remote model
+  remote_prefixes: [openrouter/, codex1/, codex2/, codex-auto/]
+  local_model: local/general-model
+
+# A message with an image part goes to this model without a decision call.
+image_model: local/vision-model
+
+# First match wins. Keys: route (choice "route"), hard_below / hard_at_least (noul "hard").
+routes:
+  - {route: vision, model: local/vision-model}
+  - {route: coder, hard_below: 0.5, model: local/coder-model}
+  - {route: coder, model: local/general-model-coding}
+  - {route: long_context, model: local/general-model}   # use the model with the longest context
+  - {route: chat, hard_below: 0.5, model: local/small-chat-model}
+  - {route: chat, model: local/general-model}
+
+questions:
+  route:
+    type: choice
+    instructions: Which model class should handle this request?
+    criteria:
+      coder: Programming, code edits, debugging, refactoring, shell commands
+      vision: Images, screenshots, photos, diagrams
+      chat: General conversation, writing, explanations, questions
+      long_context: Very long documents or many files that must be read in full
+  hard:
+    type: noul
+    instructions: Does this request need deep multi-step reasoning?
+  private:
+    type: noul
+    instructions: Does this text contain personal, medical, financial or home-security data?
+
+log:
+  path: /state/decision-router.jsonl   # one JSON line per decision, for review and relabeling
+  excerpt_chars: 300                   # private messages are logged as a hash only

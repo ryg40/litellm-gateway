@@ -1,0 +1,8 @@
+# Example route. Replace gateway.example.com with the public host name.
+# "litellm" is the network alias from .local/compose.host.yaml (docs/host-configuration.md).
+gateway.example.com {
+    # Clients must supply the LiteLLM bearer key.
+    reverse_proxy litellm:4000 {
+        flush_interval -1
+    }
+}

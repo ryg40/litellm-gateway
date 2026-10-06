@@ -1,0 +1,31 @@
+{
+  "model_list": [
+    {
+      "model_name": "openrouter/*",
+      "litellm_params": {
+        "model": "openrouter/*",
+        "api_key": "os.environ/OPENROUTER_API_KEY"
+      }
+    },
+    {
+      "model_name": "local/example-model",
+      "litellm_params": {
+        "model": "openai/example-model",
+        "api_base": "os.environ/LOCAL_API_BASE",
+        "api_key": "os.environ/LOCAL_API_KEY"
+      }
+    }
+  ],
+  "general_settings": {
+    "master_key": "os.environ/LITELLM_MASTER_KEY",
+    "disable_spend_logs": true
+  },
+  "litellm_settings": {
+    "request_timeout": 180,
+    "num_retries": 0,
+    "set_verbose": false
+  },
+  "router_settings": {
+    "num_retries": 0
+  }
+}

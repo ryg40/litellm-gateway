@@ -1,0 +1,95 @@
+# Configuration of the service copilot (compose.copilot.yaml, docs/copilot.md).
+# model_name is the alias that the gateway calls as litellm_proxy/<alias>.
+# The ids are placeholders from the LiteLLM 1.103.0 cost map: keep only the ids of
+# sh scripts/login-copilot.sh models. A short alias moves; a full name stays pinned.
+model_list:
+  - model_name: opus
+    litellm_params:
+      model: github_copilot/claude-opus-4.5
+      timeout: 540
+      stream_timeout: 540
+  - model_name: sonnet
+    litellm_params:
+      model: github_copilot/claude-sonnet-4.5
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt
+    litellm_params:
+      model: github_copilot/gpt-5.2
+      timeout: 540
+      stream_timeout: 540
+  - model_name: codex
+    litellm_params:
+      model: github_copilot/gpt-5.3-codex
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+  - model_name: claude-opus-4.5
+    litellm_params:
+      model: github_copilot/claude-opus-4.5
+      timeout: 540
+      stream_timeout: 540
+  - model_name: claude-opus-4.6-fast
+    litellm_params:
+      model: github_copilot/claude-opus-4.6-fast
+      timeout: 540
+      stream_timeout: 540
+  - model_name: claude-opus-41
+    litellm_params:
+      model: github_copilot/claude-opus-41
+      timeout: 540
+      stream_timeout: 540
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: github_copilot/claude-sonnet-4
+      timeout: 540
+      stream_timeout: 540
+  - model_name: claude-sonnet-4.5
+    litellm_params:
+      model: github_copilot/claude-sonnet-4.5
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt-5
+    litellm_params:
+      model: github_copilot/gpt-5
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: github_copilot/gpt-5-mini
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt-5.1
+    litellm_params:
+      model: github_copilot/gpt-5.1
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt-5.2
+    litellm_params:
+      model: github_copilot/gpt-5.2
+      timeout: 540
+      stream_timeout: 540
+  - model_name: gpt-5.1-codex-max
+    litellm_params:
+      model: github_copilot/gpt-5.1-codex-max
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+  - model_name: gpt-5.3-codex
+    litellm_params:
+      model: github_copilot/gpt-5.3-codex
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+general_settings:
+  master_key: os.environ/COPILOT_MASTER_KEY
+  disable_spend_logs: true
+litellm_settings:
+  request_timeout: 540
+  num_retries: 0
+  set_verbose: false
+  # Without it the provider changes each system message into an assistant message.
+  disable_copilot_system_to_assistant: true

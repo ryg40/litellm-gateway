@@ -1,0 +1,87 @@
+name: litellm
+
+x-runtime: &runtime
+  # The gateway image of this repo (docs/image.md): LiteLLM plus the hooks and routers.
+  # Unset: the local build of the service gateway. A deployment sets a registry name with a digest.
+  image: ${GATEWAY_IMAGE:-litellm-gateway:local}
+  restart: unless-stopped
+  user: "1000:1000"
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  environment: &environment
+    HOME: /tmp
+    LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    LITELLM_TELEMETRY: "False"
+    # One process serves each single-user proxy service; Redis coordination is unnecessary.
+    LITELLM_DISABLE_NO_REDIS_WARNING: "true"
+    CHATGPT_TOKEN_DIR: /tokens
+  command: ["--config", "/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+  healthcheck:
+    # python -S loads no site module, so no sitecustomize.py and no LiteLLM import.
+    test: ["CMD", "python", "-S", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness',timeout=5)"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 90s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  gateway:
+    <<: *runtime
+    # docker compose up -d --build and docker compose build use this section.
+    # The Codex services use the same image and do not build it.
+    build:
+      context: .
+      target: gateway
+      # From the environment when set; otherwise the Dockerfile default.
+      args: [BASE_IMAGE]
+    # No container_name here: a fixed name stops a second stack on one host.
+    # A host sets it in .local/compose.host.yaml (docs/host-configuration.md).
+    env_file: [.env]
+    environment:
+      <<: *environment
+      # ${VAR:?} stops Compose when a secret of .env is empty or missing
+      # (scripts/create-env.py makes .env). Compose cannot refuse a placeholder value.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?is empty; run python3 scripts/create-env.py}
+      UI_PASSWORD: ${UI_PASSWORD:?is empty; run python3 scripts/create-env.py}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD:?is empty; run python3 scripts/create-env.py}@database:5432/litellm
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?is empty; run python3 scripts/create-env.py}
+    volumes:
+      # The host file is .local/config/gateway.yaml; set GATEWAY_CONFIG in .env.
+      - ${GATEWAY_CONFIG:-./config/gateway.example.yaml}:/config/config.yaml:ro
+    ports: ["${GATEWAY_PORT:-127.0.0.1:4321}:4000"]
+    networks: [default]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?is empty; run python3 scripts/create-env.py}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [default]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+
+volumes:
+  postgres-data:

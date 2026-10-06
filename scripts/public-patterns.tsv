@@ -1,0 +1,11 @@
+# Class<TAB>scope (all or docs)<TAB>case-insensitive regular expression
+# Expressions match one line. Human review must check semantic and wrapped text.
+date	all	\b20[0-9]{2}[-/.][0-9]{2}[-/.][0-9]{2}(?![0-9])
+date	all	\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[ ]+[0-9]{1,2}(?:,)?[ ]+20[0-9]{2}\b|\b[0-9]{1,2}[ ]+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[ ]+20[0-9]{2}\b
+date	docs	\b20[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])(?:\b|T[0-9]{6}Z\b)
+tracker	all	\b(?:issue[ ]+(?:#[ ]*)?[0-9]+|(?:private[ ]+tracker|tracker)[ ]+(?:issue[ ]+)?#?[0-9]+|phase[- ]?[0-9]+\b|stage[ ]+(?-i:[A-Z])\b|finding[ ]+[0-9]+:)
+process	all	\b(?:[c]oordinator|[r]eviewer|worker[ ]+pane|approval[ ]+of[ ]+the[ ]+owner|the[ ]+owner[ ]+(?:approves|approved|decides|decided|asked|wrote)|owner[ ]+decisions?)\b
+process	all	\b(?:development[ ]+host|open[ ]+questions?|target[ ]+environment|older[ ]+(?:layout|version)[ ]+of[ ]+(?:this|the[ ]+install)|[s]omeone)\b
+process	all	\b(?:(?:the[ ]+)?repo[ ]+ran|(?:steps[ ]+)?ran[ ]+on[ ]+a[ ]+Linux|no[ ]+step[ ]+of[ ]+this[ ]+(?:file|page)[ ]+ran|Read[ ]+on[ ]+[0-9]{4}-|Measured[ ]+\([0-9]{4}-|checked[ ]+[0-9]{4}-|Verified[ ]+with[ ]+a[ ]+real[ ]+account|Verified[ ]+by[ ]+hand|in[ ]+an[ ]+earlier[ ]+test|It[ ]+is[ ]+not[ ]+in[ ]+use|The[ ]+benchmark[ ]+supports|In[ ]+the[ ]+benchmark|Test[ ]+result:.*commits)\b
+machine	all	/r[o]ot(?:/|\b)|/opt/st[a]cks(?:/|\b)|/(?:h[o]me|Users)/(?!you(?:/|\b))[^/\s]+(?:/|\b)
+email	all	\b[A-Z0-9._%+-]+@(?!(?:[A-Z0-9.-]+\.(?:invalid|example)|example\.com|users\.noreply\.github\.com)(?![A-Z0-9-]|\.[A-Z0-9-]))[A-Z0-9.-]+\.[A-Z]{2,}\b

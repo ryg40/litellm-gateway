@@ -1,0 +1,80 @@
+#!/bin/sh
+# pre-push: scan the commits that the push sends with scripts/scan.sh.
+# Install with scripts/install-hooks.sh. See docs/secret-handling.md.
+#
+# A secret or a policy finding refuses the push. A host value refuses a push to the branch
+# portable or to a tag portable-v*; for other refs it prints a warning.
+
+set -eu
+
+remote=$1
+top=$(git rev-parse --show-toplevel)
+scan=$top/scripts/scan.sh
+scan_missing=0
+if [ ! -f "$scan" ]; then
+    # Fail closed: the script is gone from the working tree, but the branch has it.
+    if git cat-file -e :scripts/scan.sh 2>/dev/null || git cat-file -e HEAD:scripts/scan.sh 2>/dev/null; then
+        echo "pre-push: scripts/scan.sh is not in the working tree, but it is in the index or in HEAD; push refused" >&2
+        exit 1
+    fi
+    echo "pre-push: scripts/scan.sh is not on this branch (not in the working tree, the index or HEAD); no scan" >&2
+    scan_missing=1
+fi
+
+status=0
+# Git writes one line for each ref: <local ref> <local sha> <remote ref> <remote sha>
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote" != origin ]; then
+        case $local_sha in
+            *[!0]*) ;;
+            *) echo 'pre-push: portable deletion through this remote is refused' >&2
+               status=1; continue ;;
+        esac
+        case $remote_ref in
+            refs/heads/portable)
+                case $local_ref in
+                    refs/heads/portable) ;;
+                    "$local_sha") ;; # Checked object refspec from the promotion command.
+                    *) echo 'pre-push: non-portable source mapped to portable is refused' >&2
+                       status=1; continue ;;
+                esac ;;
+            refs/tags/portable-v*)
+                version=${remote_ref#refs/tags/portable-v}
+                if ! printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+                    echo 'pre-push: malformed portable tag is refused' >&2
+                    status=1; continue
+                fi
+                case $local_ref in
+                    "$remote_ref"|"$local_sha") ;;
+                    *) echo 'pre-push: non-portable source mapped to portable tag is refused' >&2
+                       status=1; continue ;;
+                esac ;;
+            *) echo 'pre-push: only portable and portable-v* may leave through this remote' >&2
+               status=1; continue ;;
+        esac
+        if [ "$local_ref" = "$local_sha" ] &&
+            git merge-base --is-ancestor "$local_sha" refs/heads/local-dev 2>/dev/null; then
+            echo 'pre-push: development object source mapped to portable is refused' >&2
+            status=1; continue
+        fi
+    fi
+    [ "$scan_missing" = 0 ] || continue
+    case $local_sha in *[!0]*) ;; *) continue ;; esac # a delete sends no commit
+    if case $remote_sha in *[!0]*) false ;; *) true ;; esac ||
+        ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        case $remote_ref in
+            # A new portable ref must be clean in all of its history.
+            refs/heads/portable|refs/tags/portable-v*) range=$local_sha ;;
+            # A new ref, or the remote commit is not here: the commits that no
+            # remote-tracking ref of this remote contains.
+            *) range="$local_sha --not --remotes=$remote" ;;
+        esac
+    else
+        range="$remote_sha..$local_sha"
+    fi
+    echo "pre-push: scan $local_ref -> $remote_ref" >&2
+    SCAN_REF=$remote_ref sh "$scan" history "$range" </dev/null || status=1
+done
+
+[ "$status" -eq 0 ] || echo "pre-push: push refused (docs/secret-handling.md)" >&2
+exit "$status"

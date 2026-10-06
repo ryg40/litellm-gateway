@@ -1,0 +1,83 @@
+name: litellm
+
+# Codex account services. Start them with
+# docker compose -f compose.yaml -f compose.codex.yaml up -d
+# A YAML anchor does not cross files. The anchor "runtime" in codex1 is a copy of
+# x-runtime in compose.yaml: keep the two equal. It is not a top-level x- key,
+# because Compose merges x- keys of two files and doubles their lists.
+services:
+  codex1:
+    <<: &runtime
+      # The image of the service gateway in compose.yaml; these services do not build it.
+      image: ${GATEWAY_IMAGE:-litellm-gateway:local}
+      restart: unless-stopped
+      user: "1000:1000"
+      cap_drop: [ALL]
+      security_opt: [no-new-privileges:true]
+      environment: &environment
+        HOME: /tmp
+        LITELLM_LOCAL_MODEL_COST_MAP: "True"
+        LITELLM_TELEMETRY: "False"
+        # One process serves each single-user proxy service; Redis coordination is unnecessary.
+        LITELLM_DISABLE_NO_REDIS_WARNING: "true"
+        CHATGPT_TOKEN_DIR: /tokens
+      command: ["--config", "/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+      healthcheck:
+        # python -S loads no site module, so no sitecustomize.py and no LiteLLM import.
+        test: ["CMD", "python", "-S", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness',timeout=5)"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        start_period: 90s
+      logging:
+        driver: json-file
+        options:
+          max-size: "10m"
+          max-file: "3"
+    env_file: [secrets/codex.env]
+    volumes:
+      - ./config/codex.yaml:/config/config.yaml:ro
+      - ./state/codex1:/tokens
+    networks: [default]
+
+  codex2:
+    <<: *runtime
+    env_file: [secrets/codex.env]
+    volumes:
+      - ./config/codex.yaml:/config/config.yaml:ro
+      - ./state/codex2:/tokens
+    networks: [default]
+
+  codex3:
+    <<: *runtime
+    env_file: [secrets/codex.env]
+    volumes:
+      - ./config/codex.yaml:/config/config.yaml:ro
+      - ./state/codex3:/tokens
+    networks: [default]
+
+  codex-router:
+    <<: *runtime
+    env_file: [secrets/codex.env]
+    entrypoint: ["python", "-m", "uvicorn"]
+    command: ["quota_router:app", "--app-dir", "/opt/litellm-gateway/image/routers", "--host", "0.0.0.0", "--port", "4000", "--no-access-log"]
+    environment:
+      <<: *environment
+      # Upstream deadline; stays below the 570 s gateway timeout.
+      CODEX_REQUEST_TIMEOUT_SECONDS: "555"
+      # Preference order. The last account is the final fallback and has no usage check,
+      # so the router mounts no token of it. An account without a login is skipped.
+      CODEX_ACCOUNT_ORDER: "codex2,codex3,codex1"
+    volumes:
+      - ./state/codex2:/tokens/codex2:ro
+      - ./state/codex3:/tokens/codex3:ro
+    networks: [default]
+    depends_on:
+      codex1:
+        condition: service_healthy
+      codex2:
+        condition: service_healthy
+      # An account service stays unhealthy until its login: LiteLLM waits for the
+      # device code at start. The router skips an account without a token, so it does not wait.
+      codex3:
+        condition: service_started

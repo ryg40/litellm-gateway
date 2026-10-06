@@ -1,0 +1,80 @@
+# Example, off by default: one gateway process with two ChatGPT accounts.
+# Needs image/hooks/chatgpt_auth_file.py (see docs/codex-accounts.md).
+# The Compose service of the gateway sets these variables. Do not put them
+# in environment_variables of this file: LiteLLM applies that section when
+# it loads this file, after sitecustomize.py has read CHATGPT_AUTH_FILE_HOOK.
+#
+#   environment:
+#     CHATGPT_AUTH_FILE_HOOK: "on"        # the hook is off by default
+#     CHATGPT_AUTH_FILE_REQUIRED: "true"  # a chatgpt deployment needs the key
+#     CHATGPT_TOKEN_DIR: /tokens
+#   volumes:
+#     - ./state/codex-accounts:/tokens
+#
+# Each auth file path is relative to /tokens; scripts/login-codex-account.sh
+# <account> writes the file.
+model_list:
+  # One model group, two deployments. order 1 is used first; after a
+  # failure, a 429 included, the router uses order 2.
+  - model_name: gpt-6-luna
+    litellm_params:
+      model: chatgpt/responses/gpt-6-luna
+      chatgpt_auth_file: codex2/auth.json
+      order: 1
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      id: gpt-6-luna-codex2
+      mode: responses
+      supports_native_streaming: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  - model_name: gpt-6-luna
+    litellm_params:
+      model: chatgpt/responses/gpt-6-luna
+      chatgpt_auth_file: codex1/auth.json
+      order: 2
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      id: gpt-6-luna-codex1
+      mode: responses
+      supports_native_streaming: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  # One account only, for requests that must stay on that account.
+  - model_name: codex1/gpt-6-luna
+    litellm_params:
+      model: chatgpt/responses/gpt-6-luna
+      chatgpt_auth_file: codex1/auth.json
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      id: codex1-gpt-6-luna
+      mode: responses
+      supports_native_streaming: true
+  - model_name: codex2/gpt-6-luna
+    litellm_params:
+      model: chatgpt/responses/gpt-6-luna
+      chatgpt_auth_file: codex2/auth.json
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      id: codex2-gpt-6-luna
+      mode: responses
+      supports_native_streaming: true
+
+router_settings:
+  # A 429 puts the deployment into cooldown at once (the group has two
+  # deployments). The cooldown has a fixed length; the router does not read
+  # the reset time of the ChatGPT quota.
+  cooldown_time: 60
+  num_retries: 0
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  request_timeout: 540

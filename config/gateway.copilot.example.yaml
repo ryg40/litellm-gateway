@@ -1,0 +1,154 @@
+{
+  "model_list": [
+    {
+      "model_name": "copilot/opus",
+      "litellm_params": {
+        "model": "litellm_proxy/opus",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/sonnet",
+      "litellm_params": {
+        "model": "litellm_proxy/sonnet",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/codex",
+      "litellm_params": {
+        "model": "litellm_proxy/codex",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/claude-opus-4.5",
+      "litellm_params": {
+        "model": "litellm_proxy/claude-opus-4.5",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/claude-opus-4.6-fast",
+      "litellm_params": {
+        "model": "litellm_proxy/claude-opus-4.6-fast",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/claude-opus-41",
+      "litellm_params": {
+        "model": "litellm_proxy/claude-opus-41",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/claude-sonnet-4",
+      "litellm_params": {
+        "model": "litellm_proxy/claude-sonnet-4",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/claude-sonnet-4.5",
+      "litellm_params": {
+        "model": "litellm_proxy/claude-sonnet-4.5",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5-mini",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5-mini",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5.1",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5.1",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5.2",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5.2",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5.1-codex-max",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5.1-codex-max",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "copilot/gpt-5.3-codex",
+      "litellm_params": {
+        "model": "litellm_proxy/gpt-5.3-codex",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    }
+  ]
+}

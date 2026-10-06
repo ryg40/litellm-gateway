@@ -1,0 +1,50 @@
+name: litellm
+
+# GitHub Copilot service (docs/copilot.md). Start it with
+# docker compose -f compose.yaml -f compose.copilot.yaml up -d copilot
+# The provider github_copilot/ runs here and not in the gateway: its key refresh is a
+# blocking call, and a stalled call stops only this service.
+# A YAML anchor does not cross files. The service is a copy of x-runtime in compose.yaml
+# without CHATGPT_TOKEN_DIR: keep the two equal.
+services:
+  copilot:
+    # The image of the service gateway in compose.yaml; this service does not build it.
+    image: ${GATEWAY_IMAGE:-litellm-gateway:local}
+    restart: unless-stopped
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # COPILOT_MASTER_KEY, the same value as in .env. The gateway uses it for the copilot/* routes.
+    env_file: [secrets/copilot.env]
+    environment:
+      HOME: /tmp
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_TELEMETRY: "False"
+      # One process serves each single-user proxy service; Redis coordination is unnecessary.
+      LITELLM_DISABLE_NO_REDIS_WARNING: "true"
+      GITHUB_COPILOT_TOKEN_DIR: /state/copilot
+      # A dead local address. With no access token the provider starts a device flow for
+      # each github_copilot/ entry at the start of the proxy; the flow blocks the start
+      # for minutes and prints a code to the log. With this address the flow fails at
+      # once. Only scripts/login-copilot.sh runs a login.
+      GITHUB_COPILOT_DEVICE_CODE_URL: http://127.0.0.1:9/device-flow-disabled
+    command: ["--config", "/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    healthcheck:
+      # python -S loads no site module, so no sitecustomize.py and no LiteLLM import.
+      test: ["CMD", "python", "-S", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      # A host with its own model list sets COPILOT_CONFIG in .env (docs/copilot.md).
+      - ${COPILOT_CONFIG:-./config/copilot.yaml}:/config/config.yaml:ro
+      # The service writes a new api-key.json here when the old one expires.
+      - ./state/copilot:/state/copilot
+    # No published port. The gateway reaches the service on the project network.
+    networks: [default]

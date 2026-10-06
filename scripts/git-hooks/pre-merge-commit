@@ -1,0 +1,10 @@
+#!/bin/sh
+# pre-merge-commit: git merge runs this hook, not pre-commit, before it
+# records a merge commit without a conflict. It scans the staged merge result
+# like pre-commit. See docs/secret-handling.md.
+
+set -eu
+
+HOOK_NAME=pre-merge-commit
+export HOOK_NAME
+exec sh "$(dirname -- "$0")/pre-commit" "$@"

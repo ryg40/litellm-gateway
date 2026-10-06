@@ -1,0 +1,40 @@
+#!/bin/sh
+# Hook dispatcher. scripts/install-hooks.sh copies this file to
+# <git-common-dir>/scan-hooks/<hook> for each hook (pre-commit,
+# pre-merge-commit, pre-push) and sets core.hooksPath to that directory.
+# See docs/secret-handling.md.
+#
+# The copy is outside the working tree, so it runs on each branch and in each
+# worktree. It runs scripts/git-hooks/<hook> of the current working tree:
+# - the hook is in the working tree: run it (for pre-merge-commit on an older
+#   branch: run pre-commit);
+# - the hook or scripts/scan.sh is in the index or in HEAD, but the hook is
+#   not in the working tree: refuse (fail closed);
+# - the branch has neither: run no scan and say why.
+
+set -eu
+
+hook=$(basename -- "$0")
+top=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    echo "$hook: no working tree; no scan" >&2
+    exit 0
+}
+script=scripts/git-hooks/$hook
+if [ -f "$top/$script" ]; then
+    exec sh "$top/$script" "$@"
+fi
+# A branch from before pre-merge-commit existed: scan the merge like a commit.
+if [ "$hook" = pre-merge-commit ] && [ -f "$top/scripts/git-hooks/pre-commit" ]; then
+    HOOK_NAME=pre-merge-commit
+    export HOOK_NAME
+    exec sh "$top/scripts/git-hooks/pre-commit" "$@"
+fi
+for p in "$script" scripts/scan.sh; do
+    if git cat-file -e ":$p" 2>/dev/null || git cat-file -e "HEAD:$p" 2>/dev/null; then
+        echo "$hook: $script is not in the working tree, but $p is in the index or in HEAD; refused." >&2
+        echo "$hook: restore scripts/ from the index or from HEAD; see docs/secret-handling.md" >&2
+        exit 1
+    fi
+done
+echo "$hook: this branch has no $script and no scripts/scan.sh; no scan" >&2
+exit 0

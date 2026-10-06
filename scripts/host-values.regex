@@ -1,0 +1,37 @@
+# Host values: private network addresses, as regular expressions.
+#
+# scripts/scan.sh reports each match like a pattern of scripts/host-values.deny
+# (rule host-value-<name>, level warn or fail, docs/secret-handling.md).
+#
+# Format: one rule for each line, three fields separated by blanks:
+#   <name> <sample> <regex>
+# <name>    letters, digits and "-"; the rule id is host-value-<name>.
+# <sample>  an address that the rule must find ("scan.sh selftest"), with each
+#           "." written as "_" and each ":" written as "-", so that this file
+#           contains no address.
+# <regex>   Go (RE2) syntax, no blank, no "'''". The address is group 1.
+# A line that starts with "#" is a comment.
+#
+# IPv4: the character before the address must not be a letter, a digit or one
+# of _ . - + : = < > ~ ^ !, except "=" alone ("host=" is an address, "==" and
+# ">=" are a version pin). The character after the address must not be a
+# letter, a digit, "_", "-" or "." followed by a letter or a digit. So a
+# package pin (pkg==, pkg>=, pkg-, pkg:, v, 1.2.3.4.dev0) gives no finding,
+# and an address in a URL, after a blank, a quote, "@" or "=" gives one.
+# Blind spot: a pin with a blank after the operator (">= <version>") of a
+# version that is also a private address gives a false finding.
+#
+# Documentation ranges (192.0.2/24, 198.51.100/24, 203.0.113/24, 2001:db8/32)
+# and loopback addresses are not private ranges: no rule.
+
+# 10/8
+private-10 10_20_30_40 (?m)(?:^|[^0-9A-Za-z_.+:=<>~^!\n-]|[^=<>~!\n]=)(10\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))(?:$|[^0-9A-Za-z_.\n-]|\.(?:$|[^0-9A-Za-z_\n]))
+# 172.16/12
+private-172 172_20_1_2 (?m)(?:^|[^0-9A-Za-z_.+:=<>~^!\n-]|[^=<>~!\n]=)(172\.(?:1[6-9]|2[0-9]|3[01])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))(?:$|[^0-9A-Za-z_.\n-]|\.(?:$|[^0-9A-Za-z_\n]))
+# 192.168/16 (the literal pattern of host-values.deny finds more)
+private-192 192_168_1_2 (?m)(?:^|[^0-9A-Za-z_.+:=<>~^!\n-]|[^=<>~!\n]=)(192\.168\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))(?:$|[^0-9A-Za-z_.\n-]|\.(?:$|[^0-9A-Za-z_\n]))
+# 100.64/10 (shared address space, carrier-grade NAT, Tailscale)
+shared-100 100_100_1_2 (?m)(?:^|[^0-9A-Za-z_.+:=<>~^!\n-]|[^=<>~!\n]=)(100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]))(?:$|[^0-9A-Za-z_.\n-]|\.(?:$|[^0-9A-Za-z_\n]))
+# IPv6 unique local addresses (prefix fc00 with length 7): "fcXX:" or
+# "fdXX:", then a group or ":"
+private-ula fd12-3456--1 (?mi)(?:^|[^0-9A-Za-z_.:\n-])(f[cd][0-9a-f]{2}:(?:[0-9a-f]{1,4}:|:)[0-9a-f:]*)

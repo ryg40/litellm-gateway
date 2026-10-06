@@ -1,0 +1,114 @@
+# Template: model_list entries for a model that the cost map of the image lacks.
+# Example model: gpt-6.1-sol. docs/image.md, section "A new model", has the rules.
+#
+# This file is not a proxy configuration. Each top-level key holds the model_list
+# entries for one proxy. Copy the entries into the model_list of that proxy and
+# restart it. Use one of the two gateway forms, not both.
+#
+# Rules for model_info (gateway forms):
+# - id is the bare model name, without a provider prefix. The router registers the
+#   id as a cost-map key, and the parameter check reads the bare name.
+# - Only one entry of a proxy has the id. A second entry for the same model
+#   (an alias, another account) has no model_info: it uses the registered key.
+# - The entry with the id stands before the other entries for the same model.
+#   With another entry first, the proxy reports cost 0.0 for the model.
+# - litellm_provider is openai on the entry with the id.
+#   Without it the check refuses reasoning_effort xhigh and tool_choice.
+# - mode is chat for the gateway and responses for the account service.
+# - The account service has another form (two entries): see the section "account".
+#
+# Prices: USD per token, API-equivalent estimates, not subscription charges.
+# The example uses the base tier, in USD per million tokens: input 2, output 10,
+# cache read 0.1, cache write 2.5. A second tier above 272000 input tokens
+# (4, 15, 0.2, 5) is not in the template. Check the prices before you use them.
+
+# Gateway, hop to an account service with the openai/ prefix (the form of
+# config/gateway.codex.example.yaml).
+gateway_openai:
+  model_list:
+    - model_name: codex1/gpt-6.1-sol
+      litellm_params:
+        model: openai/gpt-6.1-sol
+        api_base: http://codex1:4000/v1
+        api_key: os.environ/CODEX_MASTER_KEY
+        timeout: 570
+        stream_timeout: 570
+      model_info:
+        id: gpt-6.1-sol
+        litellm_provider: openai
+        mode: chat
+        input_cost_per_token: 0.000002
+        output_cost_per_token: 0.00001
+        cache_read_input_token_cost: 0.0000001
+        cache_creation_input_token_cost: 0.0000025
+        supports_reasoning: true
+        supports_xhigh_reasoning_effort: true
+        supports_function_calling: true
+        supports_tool_choice: true
+    # A second entry for the same model: no model_info.
+    - model_name: codex2/gpt-6.1-sol
+      litellm_params:
+        model: openai/gpt-6.1-sol
+        api_base: http://codex2:4000/v1
+        api_key: os.environ/CODEX_MASTER_KEY
+        timeout: 570
+        stream_timeout: 570
+
+# Gateway, hop to another LiteLLM proxy with the litellm_proxy/ prefix. This form
+# has no parameter check at the gateway; model_info gives the prices.
+gateway_litellm_proxy:
+  model_list:
+    - model_name: codex1/gpt-6.1-sol
+      litellm_params:
+        model: litellm_proxy/gpt-6.1-sol
+        api_base: http://codex1:4000
+        api_key: os.environ/CODEX_MASTER_KEY
+        timeout: 570
+        stream_timeout: 570
+      model_info:
+        id: gpt-6.1-sol
+        litellm_provider: openai
+        mode: chat
+        input_cost_per_token: 0.000002
+        output_cost_per_token: 0.00001
+        cache_read_input_token_cost: 0.0000001
+        cache_creation_input_token_cost: 0.0000025
+        supports_reasoning: true
+        supports_xhigh_reasoning_effort: true
+        supports_function_calling: true
+        supports_tool_choice: true
+
+# Account service (config/codex.yaml). Two entries, no prices: an account service
+# reports no cost for a chatgpt/ route.
+# - The route entry has no id and no litellm_provider. With litellm_provider openai
+#   on it, LiteLLM sends the backend request without "stream" and Codex answers 400.
+# - The second entry is not a route. It registers the key responses/<model> with
+#   litellm_provider openai; the check of xhigh and tool_choice reads that key.
+account:
+  model_list:
+    - model_name: gpt-6.1-sol
+      litellm_params:
+        model: chatgpt/responses/gpt-6.1-sol
+        timeout: 540
+        stream_timeout: 540
+      model_info:
+        mode: responses
+        supports_native_streaming: true
+        supports_reasoning: true
+        supports_xhigh_reasoning_effort: true
+        supports_function_calling: true
+        supports_tool_choice: true
+    # Not a route. Its api_base answers nothing.
+    - model_name: gpt-6.1-sol-capabilities
+      litellm_params:
+        model: openai/responses/gpt-6.1-sol
+        api_base: http://127.0.0.1:9/v1
+        api_key: not-a-route
+      model_info:
+        id: responses/gpt-6.1-sol
+        litellm_provider: openai
+        mode: responses
+        supports_reasoning: true
+        supports_xhigh_reasoning_effort: true
+        supports_function_calling: true
+        supports_tool_choice: true

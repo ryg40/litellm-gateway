@@ -1,0 +1,15 @@
+# Host values: text that identifies a host.
+#
+# scripts/scan.sh reports each line that contains one of these patterns.
+# A finding fails on the branch portable, on a tag portable-v* and in an
+# image; it is a warning on other branches (docs/secret-handling.md).
+#
+# This file is tracked and holds no pattern: a pattern of a real host would
+# put that host value into the tree that it forbids. The patterns of a host
+# go into the untracked file .local/host-values.deny (same format). The scan
+# reads it when it exists. scripts/host-values.regex gives the generic rules.
+#
+# Format: one literal pattern for each line, case-insensitive. A line that
+# starts with "#" is a comment. Quotes and backslashes are not allowed.
+# The scan does not report host values in this file and in
+# .local/host-values.deny.

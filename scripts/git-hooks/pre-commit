@@ -1,0 +1,37 @@
+#!/bin/sh
+# pre-commit: scan the staged changes with scripts/scan.sh.
+# pre-merge-commit runs this file too (HOOK_NAME=pre-merge-commit).
+# Install with scripts/install-hooks.sh. See docs/secret-handling.md.
+#
+# A secret or a policy finding refuses the commit. A host value refuses the
+# commit on the branch portable; on other branches it prints a warning.
+
+set -eu
+
+name=${HOOK_NAME:-pre-commit}
+top=$(git rev-parse --show-toplevel)
+scan=$top/scripts/scan.sh
+if [ ! -f "$scan" ]; then
+    # Fail closed: the script is gone from the working tree, but the branch has it.
+    if git cat-file -e :scripts/scan.sh 2>/dev/null || git cat-file -e HEAD:scripts/scan.sh 2>/dev/null; then
+        echo "$name: scripts/scan.sh is not in the working tree, but it is in the index or in HEAD; commit refused" >&2
+        exit 1
+    fi
+    echo "$name: scripts/scan.sh is not on this branch (not in the working tree, the index or HEAD); no scan" >&2
+    exit 0
+fi
+
+# A change of the rules runs the negative control first.
+if git diff --cached --name-only |
+    grep -qx -e '\.gitleaks\.toml' -e 'scripts/host-values\.deny' -e 'scripts/host-values\.regex' \
+        -e 'scripts/scan\.sh'; then
+    sh "$scan" selftest </dev/null || {
+        echo "$name: the negative control failed; commit refused" >&2
+        exit 1
+    }
+fi
+
+sh "$scan" staged </dev/null || {
+    echo "$name: commit refused (docs/secret-handling.md)" >&2
+    exit 1
+}
