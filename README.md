@@ -14,16 +14,20 @@ The tracked files hold no secret and no host value.
 
 [EXPLAINER.md](EXPLAINER.md) explains each step below and lists each file, container and port that the step touches.
 
-You need Docker with Compose v2 and Buildx, `git`, `sh` and `python3` (3.9 or later).
+You need Docker with Compose v2 and Buildx, `git`, `sh`, `python3` (3.9 or later) and Node.js 24.
+On a Mac, Podman replaces Docker Desktop ([docs/mac.md](docs/mac.md)); the other hosts use Docker.
+`sh scripts/check-prereqs.sh` checks each tool and stops with exit code 1 when a hard requirement is missing.
 
 | Tool | Minimum | Command that needs it |
 | --- | --- | --- |
 | Git | 2.24 | The `pre-merge-commit` hook that `scripts/install-hooks.sh` installs; `scripts/scan.sh` alone needs 2.5 |
 | Docker Compose | 2.35.0 | `docker compose config --no-env-resolution` in `scripts/login-codex-account.sh` |
 | Buildx | 0.19 | `docker buildx bake --allow fs.write=...` in `scripts/build.sh --oci` |
+| Node.js | major version 24 | The build pipelines run on Node 24 ([docs/ci.md](docs/ci.md)). `scripts/check-prereqs.sh` refuses another major version. |
 
 Tested with Git 2.39.5, Compose 5.5.0 and Buildx 0.36.1. Not verified: the minimum versions themselves;
 they come from the upstream release where each option first appears.
+On a Mac with Apple silicon, [docs/mac.md](docs/mac.md) gives the runtime steps. Each Homebrew formula that it names has an `arm64` bottle.
 
 1. Clone the repo.
 
@@ -81,7 +85,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 - `upstream` is upstream LiteLLM. It is fetch only.
 - `local-dev` is the private integration branch of a host. It never goes to a shared remote.
 - `topic/*` branches hold one change each and merge into `local-dev`.
-- `portable` has no shared history with `local-dev`. Each promotion is one squash commit.
+- `portable` has no shared history with `local-dev`. Each promotion is one snapshot commit.
 - Tags `portable-v*` mark releases of `portable`. Images build from these tags.
 
 ## Documents
@@ -94,7 +98,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 | [docs/host-configuration.md](docs/host-configuration.md) | `.env` settings, the host gateway file, the host override file |
 | [docs/image.md](docs/image.md) | Image content, build targets, variables, tags, `model_info` entries for a new model |
 | [docs/secret-handling.md](docs/secret-handling.md) | The scan for secrets and host values, Git hooks |
-| [docs/mac.md](docs/mac.md) | The stack on a Mac, TLS inspection |
+| [docs/mac.md](docs/mac.md) | The stack on a Mac: Podman as the Docker Desktop replacement, Colima as the alternative, TLS inspection |
 | [docs/ci.md](docs/ci.md) | What a CI pipeline does |
 | [docs/operations.md](docs/operations.md) | Secrets, backup and recovery, base-image update |
 | [docs/codex-services.md](docs/codex-services.md) | Up to three Codex account services, logins, a new login with `scripts/reauth-codex.sh`, `codex-router` (supported design) |

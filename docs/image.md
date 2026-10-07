@@ -38,7 +38,7 @@ needs no emulation (QEMU).
 | --- | --- | --- |
 | `sitecustomize.py` | Stops an untested LiteLLM version. Registers the lookup keys of `gpt-6-luna`, `gpt-6-sol` and `responses/gpt-6-astra`. Installs the hooks below. | Upstream has the lookup keys: remove the static entries. The file stays while one hook stays. |
 | `litellm_versions.py` | The list `TESTED_VERSIONS` for all hooks. | No hook stays. |
-| `responses_tool_finish.py` | Gives a streamed chat answer with tool calls the finish reason `tool_calls`. | The pinned upstream bridge passes `tests/test_responses_tool_finish.py` without the hook. |
+| `responses_tool_finish.py` | Preserves completion-only function arguments and gives a streamed chat answer with tool calls the finish reason `tool_calls`. | The pinned upstream bridge passes `tests/test_responses_tool_finish.py` without the hook. |
 | `chatgpt_session_id.py` | Gives a request for a `chatgpt` deployment a stable session id ([codex-services.md](codex-services.md), section "Stable session id"). `quota_router.py` imports `cache_session_id` from it. | Upstream gives a conversation without a client id a stable `session_id` header. Then keep `cache_session_id` for the router, or move it back into `quota_router.py`. |
 | `chatgpt_auth_file.py` | One ChatGPT account for each deployment. Off by default ([codex-accounts.md](codex-accounts.md)). | The pinned upstream has the key `chatgpt_auth_file`. The hook stops the start when it finds the key upstream. |
 

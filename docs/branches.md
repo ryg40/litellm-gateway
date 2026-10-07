@@ -38,6 +38,8 @@ The script never force-pushes. Non-push previews and local application retain th
 Keep the old chain and its tags on the private server if you choose a new public history.
 
 Warning: a new root does not fast-forward from the old chain. Clone again at each target.
+A work Mac is one example target.
+On an old `portable` clone, `git pull` stops with `refusing to merge unrelated histories`. Clone again.
 
 ## Promotion
 
@@ -126,6 +128,7 @@ Without a successful check, the plan says `Not verified: visibility`.
 The command never changes visibility and never creates or deletes a repository.
 
 After a new-root public push, update the private server with `git push origin --delete portable`, then `git push origin <snapshot-id>:refs/heads/portable`.
+`<snapshot-id>` is the id of the pushed snapshot commit, the same commit as on the public remote.
 The hook permits the deletion on `origin` only.
 
 Before and after a push, the remote may contain only `HEAD`, `refs/heads/portable` and `refs/tags/portable-v*`.
@@ -143,10 +146,19 @@ Exit codes: `0` success, `1` refused operation or finding, `2` usage or tool err
 6. Run the promotion preview and approve the exact source, history mode, identity, visibility and refs.
 7. Verify the release from a clean clone. Build and service changes need separate approval.
 8. Record the tag, commit, identities, accepted findings, test results and remote refs in your private release record.
+9. Add one row for the release to the section Release record.
 
 Pattern checks cannot decide whether provider choices describe one installation. Review the text as a new reader.
 On the first push to an empty remote, chain mode checks every outgoing snapshot tree and identity.
 Old personal identities or old wording can stop that check. Fix the publication plan; do not silently skip history.
+
+## Release record
+
+| Tag | Snapshot id | Date | Note |
+| --- | --- | --- | --- |
+| `portable-v0.3.0` | `a61e506d` | 2026-10-06 | first public snapshot, new root |
+
+Tags before the public root are private only and never leave the private server.
 
 ## Tags and transfer
 

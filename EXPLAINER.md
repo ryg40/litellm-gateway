@@ -69,11 +69,14 @@ The scripts write nothing outside the checkout. The exceptions are Docker object
 | Docker Buildx with BuildKit | Buildx 0.19 | `Dockerfile` needs BuildKit. `scripts/build.sh` uses `docker buildx bake`. |
 | Git | 2.24 | The `pre-merge-commit` hook of `scripts/install-hooks.sh`. `scripts/scan.sh` alone needs 2.5. |
 | `python3` | 3.9 | The scripts on the host use the standard library only. |
+| Node.js | major version 24 | A hard requirement of the build pipelines ([docs/ci.md](docs/ci.md)). No script of this repo runs Node; the pipeline runtime does. |
 | `sh`, `curl` | none | The shell scripts and the health check. |
 
 Tested with Git 2.39.5, Compose 5.5.0 and Buildx 0.36.1. Not verified: the minimum versions themselves;
 they come from the upstream release where each option first appears.
-Check the installed versions with `git --version`, `docker compose version`, `docker buildx version` and `python3 --version`.
+`sh scripts/check-prereqs.sh` checks each tool. It stops with exit code 1 when a hard requirement is missing, for example Node 22 instead of Node 24.
+Run it before Step 1. On a Mac the runtime is Podman, not Docker ([Mac specifics](#mac-specifics)); there, run it with `--runtime podman`.
+The single commands are `git --version`, `docker compose version`, `docker buildx version`, `python3 --version` and `node --version`.
 
 The install contacts these hosts. A network with a registry proxy or TLS inspection needs the settings of [Mac specifics](#mac-specifics).
 The optional Codex and Copilot logins contact more hosts; their drill-down blocks name them.
@@ -575,12 +578,12 @@ The steps are the same as on Linux. The table gives the differences.
 
 | Step | Difference on a Mac |
 | --- | --- |
-| Prerequisites | You need a container runtime with the Docker CLI and a Linux `arm64` VM. [docs/mac.md](docs/mac.md) uses Colima. Docker Desktop, OrbStack and Rancher Desktop also give a Docker Engine. |
-| Prerequisites | With Homebrew: `brew install colima docker docker-compose docker-buildx`. Add `cliPluginsExtraDirs` to `~/.docker/config.json`, so that the Docker CLI finds the two plugins. |
-| Prerequisites | Give the VM more than the default: `colima start --cpus 4 --memory 8 --arch aarch64 --vm-type vz --mount-type virtiofs`. Podman does not work with `scripts/build.sh`: it has no `bake` command. |
-| 1 | Keep the checkout under `$HOME`. Colima mounts only `$HOME` by default. |
-| 6 | The build makes a `linux/arm64` image. Not verified: the `arm64` gateway image at run time. |
-| 9 | The macOS `$TMPDIR` is under `/var/folders`, which the Colima VM does not see. Before `scripts/scan.sh` and the tests, run `mkdir -p "$HOME/.cache/litellm-tmp"` and `export TMPDIR="$HOME/.cache/litellm-tmp"`. |
+| Prerequisites | The Mac has Apple silicon (`arm64`). You need a container runtime with a Linux `arm64` VM. Podman is the recommended replacement for Docker Desktop. Colima is an alternative; test it before you use it. Each Homebrew formula that [docs/mac.md](docs/mac.md) names has an `arm64` bottle. |
+| Prerequisites | With Homebrew: `brew install podman docker docker-compose node@24`. Add `cliPluginsExtraDirs` to `~/.docker/config.json`, so that the Docker CLI finds the Compose plugin. Put `$(brew --prefix node@24)/bin` first on `PATH`, then run `sh scripts/check-prereqs.sh --runtime podman`. |
+| Prerequisites | Start the VM with `podman machine init --cpus 4 --memory 8192 --disk-size 60` and `podman machine start`. Set `DOCKER_HOST` to the Podman socket, so that `docker compose` and the scripts talk to Podman. |
+| 1 | Keep the checkout under `$HOME`. The Podman VM shares `/Users`, `/private` and `/var/folders` by default. Colima shares only `$HOME`. |
+| 6 | Build with `podman build --target gateway -t litellm-gateway:local .`, then run `docker compose up -d` without `--build`. `scripts/build.sh` and `docker compose build` need `docker buildx`, which Podman does not have. The build makes a `linux/arm64` image. Not verified: the `arm64` gateway image at run time. |
+| 9 | Run the tests with `podman run` as [tests/README.md](tests/README.md) says, instead of `scripts/build.sh test`. `scripts/scan.sh` runs through `docker run` on `DOCKER_HOST`. With Colima, the macOS `$TMPDIR` is under `/var/folders`, which the Colima VM does not see; set `TMPDIR` to a directory under `$HOME` first. |
 | Codex and Copilot | The services write to `state/` as the user `1000:1000`. Not verified: the directory owner on a Mac. |
 
 A work network can need more settings. Not verified: a run with a registry proxy or with TLS inspection.
@@ -589,7 +592,7 @@ A work network can need more settings. Not verified: a run with a registry proxy
 | --- | --- |
 | Registry proxy for the images | `BASE_IMAGE` in `.env`, `PYTHON_IMAGE` and `GITLEAKS_IMAGE` in the environment. Keep each digest. |
 | Package proxy for the tests | `PIP_INDEX_URL` in the environment of `scripts/build.sh`. |
-| TLS inspection: image pulls | The CA of the network in `~/.docker/certs.d/`, then a restart of Colima. |
+| TLS inspection: image pulls | With Podman: the CA in the trust store of the VM, through `podman machine ssh`. With Colima: the CA in `~/.docker/certs.d/`, then a restart of Colima. |
 | TLS inspection: the tests | `PIP_CA_FILE` with a CA bundle, for example `PIP_CA_FILE=.local/ca-bundle.pem scripts/build.sh test`. |
 | TLS inspection: the gateway at run time | `SSL_CERT_FILE` and a mount of the CA bundle, in an override file under `.local/`. |
 
@@ -625,9 +628,17 @@ Warning: do not set `PYTHONPATH` in a Compose file. Another value turns the hook
 | --- | --- |
 | `sitecustomize.py` | It stops an untested LiteLLM version, registers some model lookup keys and installs the hooks below. |
 | `litellm_versions.py` | It holds `TESTED_VERSIONS`, the list of the tested LiteLLM versions for all hooks. |
-| `responses_tool_finish.py` | It gives a streamed chat answer with tool calls the finish reason `tool_calls`. |
+| `responses_tool_finish.py` | It preserves completion-only function arguments and gives a completed streamed chat answer with tool calls the finish reason `tool_calls`. |
 | `chatgpt_session_id.py` | It gives each request for a `chatgpt` deployment a stable session id, for the prompt cache. |
 | `chatgpt_auth_file.py` | It permits one ChatGPT account for each deployment. It is a prototype and off by default. |
+
+The Responses-to-Chat bridge can drop function arguments that arrive only in completion events, observed with parallel Codex tool calls.
+`responses_tool_finish.py` emits those arguments once, from `response.function_call_arguments.done` or `response.output_item.done`.
+It keeps the call id, function name and sequential chat tool index. Calls that already delivered arguments stay unchanged.
+State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged; completion events never end the stream early.
+The hook is tested with LiteLLM 1.101.0 and 1.103.0. Remove it when the pinned upstream passes the regression tests without it.
+`tests/test_responses_tool_finish.py` checks synthetic event sequences; [tests/README.md](tests/README.md) gives the pinned-image test commands.
+Not verified: live parallel tool calls with this argument recovery hook.
 
 `decision_router.py` is a prototype for the virtual model `auto` ([docs/decision-router.md](docs/decision-router.md)). The default configuration does not load it.
 

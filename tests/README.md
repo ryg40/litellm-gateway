@@ -110,6 +110,15 @@ It starts no container and reads no token of the host. It needs `sh` and `python
 sh tests/test_reauth_codex.sh
 ```
 
+## Host prerequisites
+
+`tests/test_check_prereqs.sh` checks `scripts/check-prereqs.sh` with fake tools on `PATH`: Node 24 passes,
+Node 22 and Node 25 fail, and the Podman path needs a Compose provider. It runs on the host without Docker.
+
+```
+sh tests/test_check_prereqs.sh
+```
+
 ## Promotion commands
 
 These tests use temporary repositories under `$TMPDIR` (default `/tmp`).

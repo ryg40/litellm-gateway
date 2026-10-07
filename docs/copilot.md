@@ -148,9 +148,10 @@ If the service starts first, Docker makes `state/copilot/` with the owner `root`
    docker compose up -d --force-recreate gateway
    ```
 
-9. Test the two API paths of the service. `copilot/sonnet` uses `/chat/completions`. `copilot/codex` uses `/responses`: the service changes the chat request.
+9. Test the API paths of the service. `copilot/sonnet` uses `/chat/completions`. `copilot/codex` uses `/responses`: the service changes the chat request.
+   The embedding routes use `/embeddings`.
 
-   Send one streaming request with a tool call to each route. This is the form that the stub test passed.
+   Send one streaming request with a tool call to each chat route. This is the form that the stub test passed.
    For a Claude id, remove `"tool_choice": "required"` from the request: the Copilot API answers
    `tool_choice: type "tool" and "any" are not supported for this model`. With `tool_choice` absent the model calls the tool.
 
@@ -175,34 +176,56 @@ If the service starts first, Docker makes `state/copilot/` with the owner `root`
    python3 scripts/verify.py --model copilot/sonnet --model copilot/codex
    ```
 
-   Not verified: a request without streaming. The stub test used streaming requests with a tool call.
+   Not verified: a chat request without streaming. The stub test used streaming requests with a tool call.
+
+   Send an embeddings request through the gateway and check the vector:
+
+   ```sh
+   key=$(sed -n 's/^LITELLM_MASTER_KEY=//p' .env)
+   curl -fsS http://127.0.0.1:4321/v1/embeddings \
+     -H "Authorization: Bearer $key" -H "Content-Type: application/json" \
+     -d '{"model": "copilot/text-embedding-ada-002", "input": "ping"}' |
+     python3 -c 'import json, math, sys
+   vector = json.load(sys.stdin)["data"][0]["embedding"]
+   assert len(vector) == 1536
+   assert all(type(value) in (int, float) and math.isfinite(value) for value in vector)
+   print("1536 numbers verified")'
+   ```
+
+   The first run verified `text-embedding-ada-002` through the gateway with single and batch inputs.
+   Each vector had 1536 values. Not verified: a live request to `text-embedding-3-small`.
 
 After a later login, or after a change of `config/copilot.yaml`, recreate only the service: `docker compose up -d --force-recreate copilot`. The gateway needs no recreate.
 
 ## Routes and the alias contract
 
-The stable name is `copilot/<alias>`. Clients use the alias only.
+For chat models, the stable name is `copilot/<alias>`. Clients can use a full name to pin a version.
+Embedding routes have no short alias. Clients use their pinned full names.
 
 | Gateway route | Gateway target | Service entry | Rule |
 | --- | --- | --- | --- |
 | `copilot/opus`, `copilot/sonnet`, `copilot/gpt`, `copilot/codex` | `litellm_proxy/<alias>` at `http://copilot:4000` | `<alias>` to the newest allowed `github_copilot/<id>` of the family | The alias moves to a new version in `config/copilot.yaml`. The gateway entry does not change. |
 | `copilot/<id>`, for example `copilot/claude-sonnet-4.5` | `litellm_proxy/<id>` at `http://copilot:4000` | `<id>` to `github_copilot/<id>` | The full name stays pinned. |
+| `copilot/text-embedding-ada-002` | `litellm_proxy/text-embedding-ada-002` at `http://copilot:4000` | `text-embedding-ada-002` to `github_copilot/text-embedding-ada-002` | Pinned embedding model, 1536 dimensions. |
+| `copilot/text-embedding-3-small` | `litellm_proxy/text-embedding-3-small` at `http://copilot:4000` | `text-embedding-3-small` to `github_copilot/text-embedding-3-small` | Pinned embedding model, 1536 dimensions. |
 
-The two examples hold the ids that the LiteLLM 1.103.0 cost map knows for Claude Opus, Claude Sonnet, GPT-5 and Codex. They are placeholders: the account list of step 3 decides.
+The two examples hold ids from the LiteLLM 1.103.0 cost map for Claude Opus, Claude Sonnet, GPT-5, Codex and embeddings. They are placeholders: the account list of step 3 decides.
 A list can hold ids such as `claude-opus-4.6-fast`. In the example, `opus` points at `claude-opus-4.5`. Decide the target of `opus` after step 3. Not verified: the premium-request cost of a `-fast` id.
 
 Gateway entries:
 
 - An entry has `model: litellm_proxy/<alias>`, `api_base: http://copilot:4000` (no `/v1`), `api_key: os.environ/COPILOT_MASTER_KEY`, and `timeout` and `stream_timeout` 570.
-- The provider `litellm_proxy/` sends `tool_choice` and the other OpenAI parameters to the service with no capability check. The entries need no `model_info`.
+- The provider `litellm_proxy/` sends `tool_choice` and the other OpenAI parameters to the service with no capability check. Chat entries need no `model_info`.
+- Embedding entries need `model_info.mode: embedding` and `model_info.output_vector_size: 1536` on both the gateway and the service.
 - The gateway does not change a chat request into a Responses request. The service does that for a Codex id.
 - The host gateway file needs `router_settings.num_retries: 0`, as `config/gateway.example.yaml` has. Without it the gateway sends a failed request to the service 2 more times. The service itself does not retry: `config/copilot.yaml` sets `num_retries: 0`. Not verified: the premium-request cost of a retried request.
 
 Service entries:
 
-- An entry has `model`, `timeout` and `stream_timeout` only. It has no key and no address. The timeouts are 540, below the 570 of the gateway.
+- The `litellm_params` of an entry has `model`, `timeout` and `stream_timeout` only. It has no key and no address. The timeouts are 540, below the 570 of the gateway.
 - `extra_headers` is not necessary. The provider sets `Editor-Version`, `Editor-Plugin-Version`, `Copilot-Integration-Id`, `User-Agent` and `X-GitHub-Api-Version`. A value in `extra_headers` replaces the default.
-- A Codex id needs `model_info.mode: responses`: LiteLLM then sends the request to `/responses`. Other ids go to `/chat/completions`. A model that is not in the cost map goes to `/chat/completions`.
+- A Codex id needs `model_info.mode: responses`: LiteLLM then sends the request to `/responses`. Set `model_info.mode: embedding` as the live entry does. Not verified: whether the route works without it.
+- Other ids go to `/chat/completions`. A model that is not in the cost map defaults to `/chat/completions` without an explicit mode.
 - `disable_copilot_system_to_assistant: true` is in `litellm_settings` of the service. Without it, the provider changes each `system` message of a chat request into an `assistant` message.
 
 ### An id that the cost map does not have
@@ -253,6 +276,7 @@ The LiteLLM page for the provider (`docs/providers/github_copilot`) says:
 
 The page says nothing about rate limits and nothing about the GitHub terms of service. Read the terms of the Copilot plan before use.
 Not verified: the request limits of the plan, and the response of the Copilot API when the allowance is used up.
+Not verified: the premium-request cost of an embeddings request.
 Not verified: the full `/health` endpoint of a proxy can send one request for each model, and each can use a premium request. The health check of the containers uses `/health/liveliness`, which sends none. The tracked configurations set no background health check.
 
 ## Failures

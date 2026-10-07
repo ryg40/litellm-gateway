@@ -8,6 +8,13 @@ The pipeline file holds no build logic. It calls `scripts/scan.sh` and `scripts/
 
 ## On each push
 
+0. Check the tools of the runner. The check stops with exit code 1 when a hard requirement is missing.
+
+   ```sh
+   sh scripts/check-prereqs.sh
+   ```
+
+   Node 24 is a hard requirement: the pipeline runtime runs on Node 24, and the check refuses another major version.
 1. Check out the full history. `scripts/scan.sh history` needs all commits of the scanned range.
 2. Get the scanner image. The scan needs no network after this step.
 
@@ -82,7 +89,8 @@ With `PROVENANCE=min` or `max` the index digest changes on each build. [image.md
 
 ## Runner needs
 
-- Docker with Buildx. The `release` target needs the `docker-container` driver.
+- Node.js, major version 24. The pipeline runtime of the CI system runs on it, for example the JavaScript actions of a hosted CI. `scripts/check-prereqs.sh` refuses another major version. No script of this repo runs Node.
+- Docker with Buildx. The `release` target needs the `docker-container` driver. Podman has no `bake` command, so the pipeline needs Docker.
 - Access to `ghcr.io` and `docker.io`, or mirrors through `BASE_IMAGE` and `GITLEAKS_IMAGE`.
 - The bake target `test` installs `pytest`, `pluggy` and `iniconfig` from PyPI, or from `PIP_INDEX_URL`. pip checks the hash of each file, also from a mirror.
 - With Docker-in-Docker, the checkout and `$TMPDIR` must have the same path for the job and for the Docker daemon. `scripts/scan.sh` mounts them.

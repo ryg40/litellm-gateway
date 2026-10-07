@@ -84,6 +84,22 @@ model_list:
       stream_timeout: 540
     model_info:
       mode: responses
+  - model_name: text-embedding-ada-002
+    litellm_params:
+      model: github_copilot/text-embedding-ada-002
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: embedding
+      output_vector_size: 1536
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: github_copilot/text-embedding-3-small
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: embedding
+      output_vector_size: 1536
 general_settings:
   master_key: os.environ/COPILOT_MASTER_KEY
   disable_spend_logs: true

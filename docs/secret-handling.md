@@ -200,7 +200,7 @@ To get the image once:
 docker pull zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
 ```
 
-On a Mac, the temporary directory (`$TMPDIR`) and the repository must be in a path that Docker shares. Docker Desktop shares `/Users` and `/var/folders` by default. For Colima or another runtime, check the shared paths.
+On a Mac, the temporary directory (`$TMPDIR`) and the repository must be in a path that the container VM shares. The Podman machine shares `/Users`, `/private` and `/var/folders` by default. Colima shares only `$HOME`. See [mac.md](mac.md).
 
 Host needs: a POSIX shell with `od` and `readlink`, and Git 2.5 or later (`git worktree`, `--git-common-dir`; tested with Git 2.39.5). The script does not use `git rev-parse --path-format=absolute` (Git 2.31). A path with a blank, a comma or a colon works for the repository and for `$TMPDIR` (tested); a path with a double quote is not tested.
 

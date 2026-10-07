@@ -46,6 +46,8 @@ OWNER="${OWNER##*/}"
 REPO="${API##*/}"
 ```
 
+Replace `<server>` and `<owner>` with values from `git remote get-url origin` before you run an example.
+
 Each path below is relative to `/api/v1` of that server. `{index}` is the number of an issue.
 
 ## Generic operations

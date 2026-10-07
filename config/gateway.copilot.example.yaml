@@ -149,6 +149,34 @@
         "timeout": 570,
         "stream_timeout": 570
       }
+    },
+    {
+      "model_name": "copilot/text-embedding-ada-002",
+      "litellm_params": {
+        "model": "litellm_proxy/text-embedding-ada-002",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "mode": "embedding",
+        "output_vector_size": 1536
+      }
+    },
+    {
+      "model_name": "copilot/text-embedding-3-small",
+      "litellm_params": {
+        "model": "litellm_proxy/text-embedding-3-small",
+        "api_base": "http://copilot:4000",
+        "api_key": "os.environ/COPILOT_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "mode": "embedding",
+        "output_vector_size": 1536
+      }
     }
   ]
 }

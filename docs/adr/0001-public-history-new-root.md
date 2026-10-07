@@ -7,7 +7,6 @@ This keeps the earlier chain out of the public history.
 
 The publication branch had five earlier snapshots with personal identities.
 Their trees held host values and work records.
-The repository stays private until the first public release is verified.
 
 ## Decision
 
@@ -23,7 +22,7 @@ Warning: deleting the repository cannot be undone.
 | --- | --- |
 | Continue the chain | The earlier identities and private records would stay in the public history. |
 | Use a new repository name | The old repository with its old history stays at the known name, and two repositories need an explanation. The chosen decision keeps one name. |
-| Delete refs in place | Deleting refs leaves the old objects reachable on the server by hash for a time, and the activity view shows them. A recreated repository holds no old object. |
+| Delete refs in place | Deleting refs leaves old objects reachable by hash until the server's garbage collection removes them. The activity view shows the refs. A recreated repository holds no old object. |
 
 ## Consequences
 

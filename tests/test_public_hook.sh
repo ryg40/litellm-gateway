@@ -28,7 +28,7 @@ expect() {
     if [ "$wanted" = 1 ]; then
         case $label in
             'missing tracked scanner fails closed') reason='scripts/scan.sh is not in the working tree' ;;
-            'portable deletion refused'|'shared deletion of foreign ref refused'|'installed shared deletion refused'|'installed URL deletion refused') reason='deletion through this remote is refused' ;;
+            'portable deletion refused'|'shared deletion of foreign ref refused'|'installed shared deletion refused'*|'installed URL deletion refused'*) reason='deletion through this remote is refused' ;;
             'mapped development source refused') reason='non-portable source mapped to portable is refused' ;;
             'development object source refused') reason='development object source mapped to portable is refused' ;;
             'malformed tag refused') reason='malformed portable tag is refused' ;;
@@ -99,11 +99,11 @@ for remote in origin shared; do
     expect "$remote deletion fixture seeded" 0 git push "$remote" refs/heads/portable:refs/heads/portable refs/tags/portable-v1.0.0:refs/tags/portable-v1.0.0
 done
 for ref in refs/heads/portable refs/tags/portable-v1.0.0; do
-    expect 'installed origin deletion allowed' 0 git push origin --delete "$ref"
-    expect 'origin deleted ref absent' 0 test -z "$(git --git-dir="$tmp/origin.git" for-each-ref --format='%(refname)' "$ref")"
-    expect 'installed shared deletion refused' 1 git push shared --delete "$ref"
-    expect 'shared refused ref preserved' 0 git --git-dir="$tmp/shared.git" show-ref --verify --quiet "$ref"
-    expect 'installed URL deletion refused' 1 git push "$tmp/shared.git" --delete "$ref"
-    expect 'URL refused ref preserved' 0 git --git-dir="$tmp/shared.git" show-ref --verify --quiet "$ref"
+    expect "installed origin deletion allowed: $ref" 0 git push origin --delete "$ref"
+    expect "origin deleted ref absent: $ref" 0 test -z "$(git --git-dir="$tmp/origin.git" for-each-ref --format='%(refname)' "$ref")"
+    expect "installed shared deletion refused: $ref" 1 git push shared --delete "$ref"
+    expect "shared refused ref preserved: $ref" 0 git --git-dir="$tmp/shared.git" show-ref --verify --quiet "$ref"
+    expect "installed URL deletion refused: $ref" 1 git push "$tmp/shared.git" --delete "$ref"
+    expect "URL refused ref preserved: $ref" 0 git --git-dir="$tmp/shared.git" show-ref --verify --quiet "$ref"
 done
 printf 'all %s public hook checks passed\n' "$count"

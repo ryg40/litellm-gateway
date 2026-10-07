@@ -458,7 +458,12 @@ g -C "$c" checkout -q -f clean
 
 expect_status "install-hooks.sh --uninstall" 0 in_repo "$c" sh scripts/install-hooks.sh --uninstall
 expect_status "core.hooksPath is removed" 1 g -C "$c" config --get core.hooksPath
-expect_status "the dispatcher copies are removed" 1 test -e "$(g -C "$c" rev-parse --git-common-dir)/scan-hooks"
+common=$(g -C "$c" rev-parse --git-common-dir)
+case $common in
+    /*) ;;
+    *) common=$c/$common ;;
+esac
+expect_status "the dispatcher copies are removed" 1 test -e "$common/scan-hooks"
 
 echo
 if [ "$failures" -eq 0 ]; then

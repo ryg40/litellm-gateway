@@ -1,8 +1,7 @@
 # SHA-256(path UTF-8 + NUL + exact UTF-8 line without line ending)<TAB>reason
 # Exceptions affect wording only. A moved or edited line needs a new entry.
 576109968988bf7ac16f91e8abea03b87efe2a692f23beab271f4087264aa84c	Upstream scanner regex describes generic macOS paths, not an installation.
-d906c6a9c7e48d15ff2f76d2c17f96bd56bbdcb835b09ae71207a846b29f5f66	Public Podman upstream issue citation; this exact line is not private tracking.
-5a8b5ededc2bf9f47223d064bb11ed757db4aa8860f37fafbe2d920d0825e12f	Public Buildah upstream issue citation; this exact line is not private tracking.
 c8d2152395eee68526cd638347353be9f853d1c80c5558b64d1d12eb373cf7ce	Generic macOS CA path with explicit user placeholder.
 90873f835fa950d2c2f887117e82a81068c4b22c17b426aba331b4dc3fe39e2c	Synthetic canonical backup-time format after sanitization; no host work record.
 d59bf31caa48dd8cf31238fc0cef4884d8c57e2ff875ad5cff5f2709ce32230d	Synthetic unsafe-URL fixtures test refused SSH user information; no actual account identity.
+4b05fcec1aa2e6f7c0645b725386705eb507a216d6468243050a2094f8ad04f4	Verified public release date in the release record; no private work record.
