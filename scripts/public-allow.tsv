@@ -5,3 +5,5 @@ c8d2152395eee68526cd638347353be9f853d1c80c5558b64d1d12eb373cf7ce	Generic macOS C
 90873f835fa950d2c2f887117e82a81068c4b22c17b426aba331b4dc3fe39e2c	Synthetic canonical backup-time format after sanitization; no host work record.
 d59bf31caa48dd8cf31238fc0cef4884d8c57e2ff875ad5cff5f2709ce32230d	Synthetic unsafe-URL fixtures test refused SSH user information; no actual account identity.
 4b05fcec1aa2e6f7c0645b725386705eb507a216d6468243050a2094f8ad04f4	Verified public release date in the release record; no private work record.
+1e9c5d5d140334c331f98ad8c00813a9d2b02aa389afad9c3a3864c505cc4209	Verified public release date in the release record; no private work record.
+355fd62329ade2a2e1335a6f66288865aeca35761520efa3e4621b1224348b8f	OKF v0.2 provenance timestamp (generated.at) of the explainer; not a private work record.

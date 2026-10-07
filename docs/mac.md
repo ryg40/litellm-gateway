@@ -1,7 +1,9 @@
 # Run the stack on a Mac
 
 This page starts the stack on a Mac with Apple silicon (`arm64`).
-The steps are the same as on Linux. The differences are the container runtime, the shared paths and TLS inspection.
+The steps are the same as on Linux. The differences are the container runtime, the shared paths, the shell and TLS inspection.
+
+The shell on a Mac is zsh, and the shell profile is `~/.zshrc`. Each line that this page adds to the profile goes into `~/.zshrc`, not into `~/.bashrc`. The scripts of the repo run with `sh` and need no change.
 
 On a Mac, Podman replaces Docker Desktop. Colima is an alternative; test it before you use it (section "Colima, the alternative").
 Linux hosts and CI runners use Docker ([ci.md](ci.md)). Each Homebrew formula on this page has an `arm64` bottle.
@@ -55,7 +57,7 @@ Not verified on a Mac.
 
    `/opt/homebrew` is the Homebrew prefix on Apple silicon. `brew --prefix` prints it.
 3. Put Node 24 on `PATH`. The formula `node@24` is keg-only when another Node version is the current `node` formula.
-   Add the line to the shell profile.
+   Add the line to `~/.zshrc`, then open a new terminal or run `source ~/.zshrc`.
 
    ```sh
    export PATH="$(brew --prefix node@24)/bin:$PATH"
@@ -72,7 +74,7 @@ Not verified on a Mac.
 
    The VM is `arm64` on Apple silicon. It shares `/Users`, `/private` and `/var/folders` by default, so the
    checkout under `$HOME` and the macOS `$TMPDIR` are visible in the VM.
-5. Point the Docker CLI at the Podman socket. Add the line to the shell profile. `podman machine start` prints the same path.
+5. Point the Docker CLI at the Podman socket. Add the line to `~/.zshrc`, then open a new terminal or run `source ~/.zshrc`. `podman machine start` prints the same path.
 
    ```sh
    export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -230,7 +232,7 @@ Not verified on a Mac: all steps of this section.
 3. Check the tools. `sh scripts/check-prereqs.sh --runtime docker` prints `check-prereqs: ok (docker)`.
 4. Keep the checkout and the temporary files in a shared path. Colima mounts only `$HOME` by default, writable.
    The macOS `$TMPDIR` is under `/var/folders`, which the VM does not see. Set `TMPDIR` to a directory under `$HOME`
-   in the shell that runs `scripts/scan.sh` and the tests.
+   in the zsh session that runs `scripts/scan.sh` and the tests, or in `~/.zshrc`.
 
    ```sh
    mkdir -p "$HOME/.cache/litellm-tmp"

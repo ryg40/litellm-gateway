@@ -138,7 +138,7 @@ Exit codes: `0` success, `1` refused operation or finding, `2` usage or tool err
 
 ## Release checklist
 
-1. Review the source changes and update `EXPLAINER.md` using its section "Keep this file current".
+1. Review the source changes and update `EXPLAINER.md` using its section [How to update this file for a new portable release](../EXPLAINER.md#how-to-update-this-file-for-a-new-portable-release).
 2. Run the tests in [tests/README.md](../tests/README.md), including the image build and Compose configuration checks.
 3. Run `scripts/scan.sh selftest` and `scripts/scan.sh --level fail tree`.
 4. Run `scripts/public_check.sh selftest` and `scripts/public_check.sh --level fail tree`.
@@ -157,6 +157,7 @@ Old personal identities or old wording can stop that check. Fix the publication 
 | Tag | Snapshot id | Date | Note |
 | --- | --- | --- | --- |
 | `portable-v0.3.0` | `a61e506d` | 2026-10-06 | first public snapshot, new root |
+| `portable-v0.4.0` | `cc0ccf07` | 2026-10-07 | Mac runtime on Podman, Node 24 as a hard requirement, `scripts/check-prereqs.sh` |
 
 Tags before the public root are private only and never leave the private server.
 

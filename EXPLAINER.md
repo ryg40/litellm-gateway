@@ -1,6 +1,36 @@
+---
+type: Install Explainer
+title: LiteLLM gateway install explainer
+description: This file explains the gateway installation from the portable branch and the effect of each command.
+tags: [litellm, gateway, install, portable, docker, podman]
+status: active
+generated:
+  by: process:pi-agent/codex-auto/astra
+  at: 2026-10-07T17:23:36+00:00
+sources:
+  - id: readme
+    resource: README.md
+  - id: compose
+    resource: compose.yaml
+  - id: compose-codex
+    resource: compose.codex.yaml
+  - id: compose-copilot
+    resource: compose.copilot.yaml
+  - id: dockerfile
+    resource: Dockerfile
+  - id: bake
+    resource: docker-bake.hcl
+  - id: env-example
+    resource: .env.example
+  - id: scripts
+    resource: scripts/
+  - id: docs
+    resource: docs/
+---
+
 # LiteLLM gateway: installation explainer
 
-This file explains a first installation of this gateway, one step at a time.
+This file explains a first installation of this gateway from the branch `portable`, one step at a time.
 It is for a developer who wants to know what each command does to the computer.
 [README.md](README.md) has the same steps in a short form.
 
@@ -14,12 +44,62 @@ How to read this file:
 The base steps ran on Linux amd64 without a provider key.
 Not verified: these steps on a Mac ([docs/mac.md](docs/mac.md)).
 
-Sections: [Overview](#overview), [Prerequisites](#prerequisites), [Install](#install), [Optional components](#optional-components),
-[Mac specifics](#mac-specifics), [Components](#components), [How to remove it](#how-to-remove-it), [Keep this file current](#keep-this-file-current).
+Sections: [Terms](#terms), [Overview](#overview), [Prerequisites](#prerequisites), [Install](#install), [Optional components](#optional-components),
+[Mac specifics](#mac-specifics), [Components](#components), [How to remove it](#how-to-remove-it), [Reference](#reference),
+[How to update this file for a new portable release](#how-to-update-this-file-for-a-new-portable-release).
+
+## Terms
+
+| Term | Meaning |
+| --- | --- |
+| Repository (repo) | The tracked files and their Git history. |
+| Clone | A copy of the repository on the machine, made with `git clone`. |
+| Checkout / working tree | The files of the selected Git revision in the clone. |
+| Worktree | A separate checkout that shares the Git history and configuration of another checkout. |
+| Remote | A named URL of another Git repository, kept in the configuration of the clone. |
+| Upstream | The public LiteLLM project that supplies the base image and the original source. |
+| Ref / refspec | A ref names a Git object. A refspec maps a source ref to a destination ref for a fetch or push. |
+| Git index / staged content | The file versions that Git prepares for the next commit. |
+| Snapshot / promotion | A snapshot copies a development tree without its history. Promotion creates that snapshot on `portable`. |
+| Master key | A secret that gives administrator access to a LiteLLM proxy. |
+| Virtual key | A client key that LiteLLM manages, with its own permissions and limits. |
+| Host value | A value for one machine only, for example a private address or a host name. |
+| Host gateway file | The untracked gateway configuration, normally `.local/config/gateway.yaml`, with the routes of one host. |
+| Host override file | The untracked `.local/compose.host.yaml` file, with Compose settings for one host. |
+| Image / container | An image holds the program files. A container runs a process from an image. |
+| Bind mount | A host file or directory that the container runtime makes visible inside a container. |
+| Named volume | Storage that the container runtime manages separately from the checkout and the container. |
+| Loopback | The address `127.0.0.1`. Only programs on the same machine can reach it. Inside a container, it means that container. |
+| Digest / index digest | A digest identifies content by its hash. An image index digest pins the image references for several platforms. |
+| Label | A name and value in the metadata of an image. |
+| BuildKit / Buildx builder | BuildKit builds images. Docker Buildx selects a builder that runs the build and keeps its cache. |
+| Build context / target | The context contains files available to the build. A target names a build stage or a bake definition. |
+| Compose project | The group of containers, networks and volumes that Docker Compose manages together. |
+| Container runtime / VM | A runtime manages containers. A virtual machine (VM) supplies the Linux system for containers on a Mac. |
+| Route / router | A route connects a model name or API path to a service. A router selects where a request goes. |
+| Hook | Code that runs at a defined event. Git hooks check changes; Python hooks change LiteLLM behavior. |
+| Codex account service | One LiteLLM process with the login tokens of one ChatGPT account. |
+| Copilot service | A separate LiteLLM process with the login tokens of one GitHub Copilot account. |
+| Provider / endpoint | A provider supplies model access. An endpoint is an address where a client calls a service. |
+| API / CLI / UI | Application programming interface, command-line interface and user interface. |
+| Reverse proxy | A service that receives client requests and forwards them to the gateway. |
+| OAuth / refresh token | OAuth grants access after a login. A refresh token obtains new access tokens without another browser login. |
+| Device code | A short-lived code that connects a container login to approval in a browser. |
+| Streaming / tool call | Streaming sends an answer in parts. A tool call asks the client to run a named function. |
+| Embedding | A numeric representation of text for search or comparison. |
+| Cost map / allowance | The cost map lists model prices and capabilities. An allowance limits the use that an account permits. |
+| TLS / CA bundle | TLS protects a connection. A certificate authority (CA) bundle lists the certificates that a client trusts. |
+| JSON / YAML | Formats for structured configuration. The route scripts require JSON, even when the file name ends in `.yaml`. |
+| OCI archive / provenance | An Open Container Initiative archive stores an image. Provenance records how a build produced the image. |
+| CI / runner | Continuous integration (CI) runs automatic checks. A runner is the machine or process that runs them. |
+| Homebrew bottle | A prebuilt package that Homebrew installs, without compiling its source. |
+| File mode / user id | A file mode sets access permissions. A user id identifies the owner or the user of a process. |
+| UTC / Unix epoch | Coordinated Universal Time (UTC) is the time standard here. The Unix epoch is the starting point for Unix timestamps. |
+| Iterator / completion event | An iterator supplies stream events one at a time. A completion event reports that an item or response has finished. |
 
 ## Overview
 
-The stack is an OpenAI-compatible gateway. A client sends a request to the gateway, and the gateway sends it to a provider.
+The stack is an OpenAI-compatible gateway. A client sends a request to the gateway. The gateway sends it to a provider.
 The gateway is LiteLLM 1.103.0 with the hooks and routers of this repo. Docker Compose runs it.
 The base install has two services: `gateway` and `database`. The other services are optional and off by default.
 
@@ -61,6 +141,26 @@ The scripts write nothing outside the checkout. The exceptions are Docker object
 | GitHub Copilot service | `litellm-copilot-1` | `secrets/copilot.env`, `state/copilot/`, `.local/config/copilot.yaml` |
 | Local models | none | Routes in the host gateway file |
 
+### What is different on portable
+
+`local-dev` keeps private development history. `portable` keeps snapshot commits without that history.
+Only `portable` and its release tags go to a shared Git server ([docs/branches.md](docs/branches.md)).
+`scripts/promote.sh` checks a snapshot and prints a plan by default.
+`--apply` creates local refs. `--push` also publishes them.
+A push needs separate approval of that plan. Promotion builds no image and changes no service.
+
+| Subject | In a clone of `portable` |
+| --- | --- |
+| History | Each promotion copies the development tree. The previous snapshot is its only parent; the first snapshot has no parent. |
+| New root | `--new-root` creates a snapshot without a parent. It does not erase old commits or tags. Targets must clone again. |
+| Release tags | An annotated tag `portable-vX.Y.Z` marks a snapshot release. `X.Y.Z` is the portable version. |
+| Image tag | `scripts/build.sh` uses `<litellm version>-pX.Y.Z` at that release tag. `LITELLM_VERSION` comes from `docker-bake.hcl`, not upstream Git history. |
+| Between releases | Without a release tag at `HEAD`, the portable version uses `git describe`, or `0-g<hash>` without a matching tag. |
+| Scan | Host values fail at level `fail` on `portable` and `portable-v*` tags. Secrets and policy findings always fail. |
+| Remotes | `origin` is the server of the clone. `upstream` is absent until step 2. Development normally publishes through the remote `github`. |
+
+[docs/image.md](docs/image.md) describes the image tags and labels. [docs/remotes.md](docs/remotes.md) describes the fetch-only upstream remote.
+
 ## Prerequisites
 
 | Tool | Minimum | Why |
@@ -72,10 +172,12 @@ The scripts write nothing outside the checkout. The exceptions are Docker object
 | Node.js | major version 24 | A hard requirement of the build pipelines ([docs/ci.md](docs/ci.md)). No script of this repo runs Node; the pipeline runtime does. |
 | `sh`, `curl` | none | The shell scripts and the health check. |
 
-Tested with Git 2.39.5, Compose 5.5.0 and Buildx 0.36.1. Not verified: the minimum versions themselves;
-they come from the upstream release where each option first appears.
+Tests used Git 2.39.5, Compose 5.5.0 and Buildx 0.36.1.
+Not verified: the minimum versions themselves.
+They come from the upstream release where each option first appears.
 `sh scripts/check-prereqs.sh` checks each tool. It stops with exit code 1 when a hard requirement is missing, for example Node 22 instead of Node 24.
-Run it before Step 1. On a Mac the runtime is Podman, not Docker ([Mac specifics](#mac-specifics)); there, run it with `--runtime podman`.
+Run it before Step 1. On a Mac the runtime is Podman, not Docker ([Mac specifics](#mac-specifics)).
+There, run it with `--runtime podman`.
 The single commands are `git --version`, `docker compose version`, `docker buildx version`, `python3 --version` and `node --version`.
 
 The install contacts these hosts. A network with a registry proxy or TLS inspection needs the settings of [Mac specifics](#mac-specifics).
@@ -102,6 +204,8 @@ cd litellm
 
 You see the usual output of `git clone`. The directory `litellm` now holds the checkout.
 A release is on the branch `portable`, with a tag `portable-v*` for each release.
+
+Expected result: the directory `litellm` holds the checkout from your Git server.
 
 <details><summary>Drill-down: what the clone touches</summary>
 
@@ -132,6 +236,8 @@ upstream: https://github.com/BerriAI/litellm.git (fetch only, push DISABLED, tag
 A clone does not copy the remote configuration, so each new clone needs this step once.
 The remote lets you compare a file with an upstream LiteLLM release. The gateway runs without it.
 
+Expected result: the second command prints `upstream: configuration is correct` and exits with code 0.
+
 <details><summary>Drill-down: what <code>scripts/setup-remotes.sh</code> touches</summary>
 
 | Piece | Detail |
@@ -158,6 +264,8 @@ scripts/install-hooks.sh --check
 You see `core.hooksPath = <path of the checkout>/.git/scan-hooks (main checkout and all worktrees)`. The second command prints a line that starts with `ok:`.
 The hooks scan each commit, merge and push for secrets and for values of one host.
 A hook fails closed: without Docker or the scanner image, the commit or the push stops. Pull the scanner image of step 9 first.
+
+Expected result: the check prints a line that starts with `ok:` and exits with code 0.
 
 <details><summary>Drill-down: what <code>scripts/install-hooks.sh</code> touches</summary>
 
@@ -189,6 +297,8 @@ create-env: wrote <path of the checkout>/.env (mode 0600) with new values for LI
 
 Compose reads the secrets of the stack from `.env`. The script makes a new random value for each secret.
 It prints key names only, never a value.
+
+Expected result: `.env` exists with mode 0600 and six new secrets. The script prints only their names.
 
 Warning: do not copy `.env.example` to `.env`. Compose refuses to start with its empty secrets.
 
@@ -227,7 +337,9 @@ The default configuration `config/gateway.example.yaml` has two routes. The rout
 The route `local/example-model` reads `LOCAL_API_BASE` and `LOCAL_API_KEY`.
 The gateway also starts with an empty `OPENROUTER_API_KEY`. A route works only with its key.
 
-Warning: `.env` holds credentials. Do not add it to Git, and do not paste a key into a chat.
+Expected result: `.env` holds the provider keys that you set. The edit prints no output.
+
+Warning: `.env` holds credentials. Do not add it to Git. Do not paste a key into a chat.
 
 <details><summary>Drill-down: who reads <code>.env</code></summary>
 
@@ -263,6 +375,8 @@ The first command prints the build steps. Its last lines name the objects that C
 The line of `gateway` shows `127.0.0.1:4321->4000/tcp`. The first start takes up to 90 seconds.
 One command builds the gateway image from `Dockerfile` and starts the two services of `compose.yaml`.
 
+Expected result: `docker compose ps` shows both services as healthy, with `127.0.0.1:4321->4000/tcp` for `gateway`.
+
 <details><summary>Drill-down: what <code>docker compose up -d --build</code> touches</summary>
 
 | Piece | Detail |
@@ -270,7 +384,7 @@ One command builds the gateway image from `Dockerfile` and starts the two servic
 | Compose file and services | `compose.yaml`: `gateway` and `database`. |
 | Files read | `compose.yaml`, `.env`, `Dockerfile`, `.dockerignore`, `image/hooks/`, `image/routers/`. |
 | Image built | `litellm-gateway:local`, the target `gateway` of `Dockerfile`: the LiteLLM base image plus `image/hooks/` and `image/routers/`. |
-| Images pulled | `ghcr.io/berriai/litellm@sha256:bd089afd...` (LiteLLM 1.103.0) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Both are pinned by index digest. |
+| Images pulled | `ghcr.io/berriai/litellm@sha256:bd089afd...` (LiteLLM 1.103.0) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
 | Containers | `litellm-gateway-1` and `litellm-database-1`. The gateway runs as the user `1000:1000`, with no capability and with `no-new-privileges`. Each container has `restart: unless-stopped` and keeps at most 3 log files of 10 MB. |
 | Network and volume | The network `litellm_default`: both services use only this network. The volume `litellm_postgres-data`, at `/var/lib/postgresql/data` of `database`. |
 | Ports | `gateway` listens on 4000 in the container. Compose publishes it on `127.0.0.1:4321`; `GATEWAY_PORT` changes the address. `database` listens on 5432 and publishes no port. |
@@ -284,7 +398,7 @@ Two other ways to get the image ([docs/image.md](docs/image.md)):
 
 - `scripts/build.sh` builds the same target with `docker buildx bake -f docker-bake.hcl`. It first runs the target `smoke`, which starts Python in the image.
   It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.103.0-p<portable version>`.
-  Compose uses that image only when `GATEWAY_IMAGE` in `.env` names it. Nothing is pushed without `--push`.
+  Compose uses that image only when `GATEWAY_IMAGE` in `.env` names it. The script pushes nothing without `--push`.
 - A released image: set `GATEWAY_IMAGE` in `.env` to the registry name with its index digest. Then run `docker compose up -d` without `--build`.
 
 </details>
@@ -297,6 +411,8 @@ curl http://127.0.0.1:4321/health/liveliness
 
 You see `"I'm alive!"`.
 The answer shows that the gateway process runs and that the published port works. The request needs no key.
+
+Expected result: the response is `"I'm alive!"`.
 
 <details><summary>Drill-down: what the health check touches</summary>
 
@@ -317,6 +433,8 @@ python3 scripts/verify.py
 
 You see `Authentication passed; <n> model entries`. With the default configuration, the route `openrouter/*` gives more than 400 entries.
 The script shows that the gateway refuses a request without a valid key and accepts the master key.
+
+Expected result: the script prints `Authentication passed; <n> model entries` and exits with code 0.
 To test one model, run `python3 scripts/verify.py --model <model name>`. This sends one short chat request, which uses the allowance of the provider.
 
 <details><summary>Drill-down: what <code>scripts/verify.py</code> touches</summary>
@@ -343,7 +461,9 @@ scripts/scan.sh tree
 
 The first command ends without an error when each test passes. The scan ends with exit code 0 when it has no finding.
 The tests show that the hooks work with the pinned LiteLLM version. The scan shows that the tracked files hold no secret.
-`scripts/scan.sh` stops with exit code 2 while the scanner image is absent, so pull the image once.
+`scripts/scan.sh` stops with exit code 2 while the scanner image is absent. Pull the image once.
+
+Expected result: the tests pass, the scanner image is present, and the scan exits with code 0.
 
 <details><summary>Drill-down: what <code>scripts/build.sh test</code> touches</summary>
 
@@ -384,7 +504,8 @@ Most components write routes into the host gateway file. Thus do steps 1 and 2 o
 
 `config/gateway.example.yaml` is a tracked example. Your own routes go into `.local/config/gateway.yaml`, the host gateway file.
 
-1. Run `mkdir -p .local/config`, then `cp config/gateway.example.yaml .local/config/gateway.yaml`. Git ignores `.local/`, so an update of the repo does not change your file.
+1. Run `mkdir -p .local/config`. Then run `cp config/gateway.example.yaml .local/config/gateway.yaml`.
+   Git ignores `.local/`, so an update of the repo does not change your file.
 2. Add the line `GATEWAY_CONFIG=./.local/config/gateway.yaml` to `.env`. Compose then mounts your file in place of the example.
 3. Edit the file, or let a script of the next sections fill it. Keep the JSON syntax: the scripts read the file as JSON.
 4. Run `docker compose up -d --force-recreate gateway`. A mounted file needs a recreate, not a restart.
@@ -417,7 +538,7 @@ docker compose up -d --force-recreate gateway
 python3 scripts/verify.py --model anthropic/MODEL_ID
 ```
 
-The first command shows the hidden prompt `Separate Anthropic API key or OAuth token:`. Paste the credential and press Enter.
+The first command shows the hidden prompt `Separate Anthropic API key or OAuth token:`. Paste the credential. Press Enter.
 It then prints the path of the host gateway file and the recreate command. Replace `MODEL_ID` with an Anthropic model ID.
 The route `anthropic/*` uses its own credential. The hidden prompt keeps the credential out of the shell history.
 
@@ -461,8 +582,9 @@ The script for the routes needs two logins or more.
 
    The directories must be writable for the user `1000:1000`. On Linux, Docker makes a missing directory with the owner `root`.
    The login then cannot write the token. Not verified: the directory owner on a Mac.
-3. Run `sh scripts/login-codex.sh 1`, then `sh scripts/login-codex.sh 2`. Each command shows a URL and a device code.
-   Open the URL in a browser with the ChatGPT account of that number and enter the code. Use a separate browser profile for each account.
+3. Run `sh scripts/login-codex.sh 1`. Then run `sh scripts/login-codex.sh 2`.
+   Each command shows a URL and a device code.
+   Open the URL in a browser with the ChatGPT account of that number. Enter the code. Use a separate browser profile for each account.
    The last line is `Login complete. Credentials stay in this account's token directory.`
    Not verified: the exact text of the URL and of the device code, and how long a device code stays valid.
 4. Run `python3 scripts/enable-codex.py`. It adds the Codex routes to the host gateway file and stops when a token file is missing.
@@ -490,7 +612,8 @@ Warning: do not copy the refresh tokens of another client, for example a Codex C
 | Not touched | `.env`. The logins of other clients. The token directory of another account. |
 
 A later login for an account that exists: `sh scripts/reauth-codex.sh <1|2|3|all>`. `--check` prints the state and changes nothing.
-The script stops one service, moves `auth.json` to a backup with mode 0600, runs the login and starts the service again.
+The script stops one service. It moves `auth.json` to a backup with mode 0600.
+It runs the login and then starts the service again.
 `scripts/login-codex-account.sh` is for the prototype of [docs/codex-accounts.md](docs/codex-accounts.md). The account services do not use it.
 [docs/codex-services.md](docs/codex-services.md) covers one account, the router and the limits.
 
@@ -510,13 +633,13 @@ Do the steps in this order: the login comes before the first start of the servic
    ```
 
 2. Run `sh scripts/login-copilot.sh` as root, or as a user with the user id 1000. Another user gets exit code 2: only root can give the directory to the user of the service.
-   The container prints a URL and a code. Open the URL in a browser with the GitHub account and enter the newest code.
+   The container prints a URL and a code. Open the URL in a browser with the GitHub account. Enter the newest code.
    Each code is valid for one minute. The login ends with `Login complete. The token files stay in the token directory.`
 3. Run `sh scripts/login-copilot.sh models --endpoints`. It prints the model ids of the account and the policy state of each id.
-4. Copy `config/copilot.yaml` to `.local/config/copilot.yaml` and keep only the ids of step 3. The tracked file holds placeholder ids.
+4. Copy `config/copilot.yaml` to `.local/config/copilot.yaml`. Keep only the ids of step 3. The tracked file holds placeholder ids.
    Then add `COPILOT_CONFIG=./.local/config/copilot.yaml` to `.env`.
 5. Add `compose.copilot.yaml` to `COMPOSE_FILE` in `.env`: `COMPOSE_FILE=compose.yaml:compose.copilot.yaml`. Keep a host override file last in the list.
-6. Run `docker compose up -d copilot`, then `docker compose ps copilot`. The status must be `healthy`.
+6. Run `docker compose up -d copilot`. Then run `docker compose ps copilot`. The status must be `healthy`.
    `docker compose logs copilot | grep -c "ignoring and continuing"` must print 0: each counted line is an entry that the service dropped.
 7. Copy the `model_list` entries of `config/gateway.copilot.example.yaml` into the host gateway file. Keep the aliases that the service has.
 8. Run `docker compose up -d --force-recreate gateway`. The gateway reads `COPILOT_MASTER_KEY` and the new routes at a recreate only.
@@ -533,7 +656,7 @@ Warning: the file `access-token` gives access to the Copilot allowance of the ac
 | Compose file and service | `compose.copilot.yaml`: `copilot`, on the gateway image. It listens on 4000 on the project network and publishes no port. |
 | Files that you create | `secrets/copilot.env`, mode 0600, and `.local/config/copilot.yaml`. |
 | `.env` keys | `COPILOT_MASTER_KEY` for the gateway, `COPILOT_CONFIG` and `COMPOSE_FILE`. No script writes the last two. |
-| Login container | `docker run --rm --name litellm-copilot-login`, as the user `1000:1000`. It gets no env file, no master key and no project network, and the hooks of the image are off. It uses the image of the service `gateway` in `compose.yaml`, or `LITELLM_IMAGE`: build the image first (step 6 of the install). |
+| Login container | `docker run --rm --name litellm-copilot-login`, as the user `1000:1000`. It gets no env file, no master key and no project network. The hooks of the image are off. It uses the image of the service `gateway` in `compose.yaml`, or `LITELLM_IMAGE`. Build the image first (step 6 of the install). |
 | Token directory | `state/copilot/`, owner `1000:1000`, mode 0700. The script makes it. `COPILOT_TOKEN_DIR` and `COPILOT_USER` change the path and the user. |
 | Token files | `access-token`, the GitHub OAuth token, and `api-key.json`, the short-lived Copilot key. The login makes both with mode 0600. The service writes a new `api-key.json` when the old one expires. |
 | External hosts | `github.com` for the device login, `api.github.com` for the key exchange, `api.githubcopilot.com` for the models and the requests. |
@@ -564,7 +687,7 @@ Use an address that the host and the container `gateway` can both reach.
 | --- | --- |
 | Endpoints | `--endpoint NAME=URL`, more than one time if necessary. Without the option, `LOCAL_ENDPOINTS` from the environment or from `.env`. |
 | External hosts | One `GET <URL>/models` for each endpoint, with a timeout of 15 seconds. The script sends no key. |
-| Files changed | The host gateway file only. The script removes each route that starts with `NAME/` and adds one route for each model: `NAME/<model id>`, with `model: openai/<model id>`, the URL as `api_base`, and `api_key` set to `os.environ/LOCAL_API_KEY`. |
+| Files changed | The host gateway file only. The script removes each route that starts with `NAME/`. It adds one route for each model: `NAME/<model id>`. Each route has `model: openai/<model id>`, the URL as `api_base`, and `api_key` set to `os.environ/LOCAL_API_KEY`. |
 | Embedding | `--embedding-model` and `--embedding-base`, or `LOCAL_EMBEDDING_MODEL` and `LOCAL_EMBEDDING_BASE`, add one dedicated embedding route. Set both or neither. |
 | Safe stop | The script writes nothing if an endpoint does not answer or gives no model. With no endpoint it stops with exit code 1. |
 | Not touched | The routes of other providers, `.env` and each container. |
@@ -579,11 +702,11 @@ The steps are the same as on Linux. The table gives the differences.
 | Step | Difference on a Mac |
 | --- | --- |
 | Prerequisites | The Mac has Apple silicon (`arm64`). You need a container runtime with a Linux `arm64` VM. Podman is the recommended replacement for Docker Desktop. Colima is an alternative; test it before you use it. Each Homebrew formula that [docs/mac.md](docs/mac.md) names has an `arm64` bottle. |
-| Prerequisites | With Homebrew: `brew install podman docker docker-compose node@24`. Add `cliPluginsExtraDirs` to `~/.docker/config.json`, so that the Docker CLI finds the Compose plugin. Put `$(brew --prefix node@24)/bin` first on `PATH`, then run `sh scripts/check-prereqs.sh --runtime podman`. |
-| Prerequisites | Start the VM with `podman machine init --cpus 4 --memory 8192 --disk-size 60` and `podman machine start`. Set `DOCKER_HOST` to the Podman socket, so that `docker compose` and the scripts talk to Podman. |
+| Prerequisites | With Homebrew: `brew install podman docker docker-compose node@24`. Add `cliPluginsExtraDirs` to `~/.docker/config.json`, so that the Docker CLI finds the Compose plugin. Put `$(brew --prefix node@24)/bin` first on `PATH`. Then run `sh scripts/check-prereqs.sh --runtime podman`. |
+| Prerequisites | Create the VM with `podman machine init --cpus 4 --memory 8192 --disk-size 60`. Start it with `podman machine start`. Set `DOCKER_HOST` to the Podman socket, so that `docker compose` and the scripts talk to Podman. |
 | 1 | Keep the checkout under `$HOME`. The Podman VM shares `/Users`, `/private` and `/var/folders` by default. Colima shares only `$HOME`. |
-| 6 | Build with `podman build --target gateway -t litellm-gateway:local .`, then run `docker compose up -d` without `--build`. `scripts/build.sh` and `docker compose build` need `docker buildx`, which Podman does not have. The build makes a `linux/arm64` image. Not verified: the `arm64` gateway image at run time. |
-| 9 | Run the tests with `podman run` as [tests/README.md](tests/README.md) says, instead of `scripts/build.sh test`. `scripts/scan.sh` runs through `docker run` on `DOCKER_HOST`. With Colima, the macOS `$TMPDIR` is under `/var/folders`, which the Colima VM does not see; set `TMPDIR` to a directory under `$HOME` first. |
+| 6 | Build with `podman build --target gateway -t litellm-gateway:local .`. Then run `docker compose up -d` without `--build`. `scripts/build.sh` and `docker compose build` need `docker buildx`, which Podman does not have. The build makes a `linux/arm64` image. Not verified: the `arm64` gateway image at run time. |
+| 9 | Run the tests with `podman run` as [tests/README.md](tests/README.md) says, instead of `scripts/build.sh test`. `scripts/scan.sh` runs through `docker run` on `DOCKER_HOST`. With Colima, the macOS `$TMPDIR` is under `/var/folders`, which the Colima VM does not see. Set `TMPDIR` to a directory under `$HOME` first. |
 | Codex and Copilot | The services write to `state/` as the user `1000:1000`. Not verified: the directory owner on a Mac. |
 
 A work network can need more settings. Not verified: a run with a registry proxy or with TLS inspection.
@@ -616,10 +739,10 @@ They run as the user `1000:1000` with no capability. They reach each other by se
 | Layer | Content |
 | --- | --- |
 | Base image | The upstream LiteLLM 1.103.0 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
-| `image/hooks/` | Copied to `/opt/litellm-gateway/image/hooks/`. `PYTHONPATH` names this directory. |
-| `image/routers/` | Copied to `/opt/litellm-gateway/image/routers/`: `quota_router.py` and `decision_router.py`. |
+| `image/hooks/` | The build copies these files to `/opt/litellm-gateway/image/hooks/`. `PYTHONPATH` names this directory. |
+| `image/routers/` | The build copies `quota_router.py` and `decision_router.py` to `/opt/litellm-gateway/image/routers/`. |
 
-Python imports `sitecustomize.py` from `PYTHONPATH` at each start, and that file installs the hooks.
+Python imports `sitecustomize.py` from `PYTHONPATH` at each start. That file installs the hooks.
 The add-on files have the owner `root` and are read-only. The image holds no route, no `.env`, no `secrets/` and no `state/`.
 
 Warning: do not set `PYTHONPATH` in a Compose file. Another value turns the hooks off without an error.
@@ -635,9 +758,9 @@ Warning: do not set `PYTHONPATH` in a Compose file. Another value turns the hook
 The Responses-to-Chat bridge can drop function arguments that arrive only in completion events, observed with parallel Codex tool calls.
 `responses_tool_finish.py` emits those arguments once, from `response.function_call_arguments.done` or `response.output_item.done`.
 It keeps the call id, function name and sequential chat tool index. Calls that already delivered arguments stay unchanged.
-State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged; completion events never end the stream early.
-The hook is tested with LiteLLM 1.101.0 and 1.103.0. Remove it when the pinned upstream passes the regression tests without it.
-`tests/test_responses_tool_finish.py` checks synthetic event sequences; [tests/README.md](tests/README.md) gives the pinned-image test commands.
+State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged. Completion events never end the stream early.
+Tests cover the hook with LiteLLM 1.101.0 and 1.103.0. Remove it when the pinned upstream passes the regression tests without it.
+`tests/test_responses_tool_finish.py` checks synthetic event sequences. [tests/README.md](tests/README.md) gives the pinned-image test commands.
 Not verified: live parallel tool calls with this argument recovery hook.
 
 `decision_router.py` is a prototype for the virtual model `auto` ([docs/decision-router.md](docs/decision-router.md)). The default configuration does not load it.
@@ -676,9 +799,13 @@ Warning: step 2 deletes the database: the virtual keys, the spend data and the s
 
 2. Run `docker compose down -v`. Compose also removes the volume `litellm_postgres-data`.
 3. Run `docker image rm litellm-gateway:local`. `docker image ls` shows the names of the other images of the table "Footprint of the base install".
-   Delete the LiteLLM base image, the Postgres image and the scanner image in the same way if no other project uses them.
-   `docker buildx prune` deletes the unused build cache of all projects, not only of this one.
-4. Run `scripts/install-hooks.sh --uninstall` and `git remote remove upstream`, if the clone stays. This removes the Git hooks and the remote.
+   Delete each other image in the same way only if no other project uses it.
+   These images are the LiteLLM base image, the Postgres image and the scanner image.
+
+Warning: `docker buildx prune` deletes the unused build cache of all projects, not only of this one.
+
+4. Run `scripts/install-hooks.sh --uninstall` if the clone stays. This removes the Git hooks.
+   Run `git remote remove upstream` to remove the remote.
 
 Warning: step 5 deletes the login tokens. Each account then needs a new login.
 
@@ -691,7 +818,184 @@ Warning: step 6 deletes the keys of `.env` and your host configuration. Without 
 
 After step 6 the checkout has only tracked files. Delete the directory `litellm` to remove the last part.
 
-## Keep this file current
+## Reference
+
+### Files of the install kit
+
+The table lists each script, hook and test. The header comments describe their functions, except where a test has no header.
+For those tests, the test cases supply the description. The table also includes the rule files and test support files.
+
+| File | Function |
+| --- | --- |
+| `scripts/build.sh` | Builds the gateway image with Buildx bake; runs the smoke check before `gateway` and `release`. |
+| `scripts/check-prereqs.sh` | Checks the host tools before installation or a pipeline run; refuses a missing hard requirement. |
+| `scripts/create-env.py` | Creates `.env` with random secrets and mode 0600; refuses to replace an existing file. |
+| `scripts/enable-anthropic.py` | Installs a separate Anthropic key or token without reading CLI credentials. |
+| `scripts/enable-codex.py` | Adds Codex routes after separate account logins; leaves tracked files unchanged. |
+| `scripts/fetch-upstream.sh` | Fetches one release tag into `refs/upstream/tags/`, with depth 1 and no initial file contents. |
+| `scripts/gateway_config.py` | Finds and writes the host gateway configuration; never writes a tracked example. |
+| `scripts/install-hooks.sh` | Copies the hook dispatcher and sets `core.hooksPath` for the main checkout and its worktrees. |
+| `scripts/login-codex-account.py` | Runs the prototype device-code login inside a login container; keeps the auth file at mode 0600. |
+| `scripts/login-codex-account.sh` | Starts that separate prototype login container for one account. |
+| `scripts/login-codex.py` | Logs in inside one isolated Codex service; never imports CLI refresh tokens. |
+| `scripts/login-codex.sh` | Starts the login container for `codex1`, `codex2` or `codex3`, with its separate token directory. |
+| `scripts/login-copilot.py` | Runs a Copilot device login and token exchange, or lists models; never prints a token. |
+| `scripts/login-copilot.sh` | Starts the separate Copilot login container and prepares its token directory. |
+| `scripts/promote.sh` | Checks an isolated snapshot and release tag; defaults to a preview, with no image build or service change. |
+| `scripts/public_check.sh` | Checks public trees, messages and identities; reads Git blobs without checkout filters and hashes accepted lines. |
+| `scripts/reauth-codex.sh` | Stops one account service, saves its token, logs in and starts it again; restores the old token after an incomplete login. |
+| `scripts/scan.sh` | Scans for secrets, host values and policy findings before publication or an image build. |
+| `scripts/setup-remotes.sh` | Creates or repairs the fetch-only `upstream` remote; `--check` changes nothing. |
+| `scripts/sync-local-models.py` | Refreshes local model routes from endpoints and preserves cloud routes and the dedicated embedding route. |
+| `scripts/verify.py` | Checks authentication and model listing; optionally sends a small chat request. |
+| `scripts/git-hooks/dispatch` | Runs the hook from the current working tree; refuses a missing tracked hook or scanner. |
+| `scripts/git-hooks/pre-commit` | Scans staged changes; first tests scanner rules when those rules change. |
+| `scripts/git-hooks/pre-merge-commit` | Runs the commit scan on a merge result before Git records a merge without conflicts. |
+| `scripts/git-hooks/pre-push` | Checks outgoing refs and scans their history; refuses nonportable publication outside `origin`. |
+| `scripts/host-values.deny` | Lists forbidden literal host-value patterns. |
+| `scripts/host-values.regex` | Lists regular expressions for host values. |
+| `scripts/public-patterns.tsv` | Lists the wording classes and patterns of the public check. |
+| `scripts/public-allow.tsv` | Lists path-bound, hashed line exceptions to the public check. |
+| `tests/README.md` | Gives the test commands, requirements and limits. |
+| `tests/conftest.py` | Adds the router import path and refuses hook tests without the startup hook. |
+| `tests/test_chatgpt_auth_file.py` | Tests the account-file hook offline with synthetic tokens and fake authentication endpoints. |
+| `tests/test_chatgpt_session_id.py` | Tests stable session ids with a local fake ChatGPT backend and no real account. |
+| `tests/test_check_prereqs.sh` | Tests prerequisite checks offline with fake tools on `PATH`. |
+| `tests/test_codex_cost.py` | Checks Codex API-equivalent prices in the pinned proxy. |
+| `tests/test_compose.sh` | Checks rendered Compose files in a temporary copy; starts no container and reads no host secrets. |
+| `tests/test_copilot_config.py` | Checks the service configuration, gateway route example and optional `COPILOT_PROPOSAL` file. |
+| `tests/test_create_env.py` | Tests `.env` creation and the placeholder refusal in `scripts/verify.py`. |
+| `tests/test_decision_router.py` | Tests the prototype decision router with simulated responses, timeouts and route settings. |
+| `tests/test_host_separation.py` | Keeps host values out of the tracked gateway examples and Compose files. |
+| `tests/test_image.sh` | Checks a built gateway image with temporary containers and `--network none`. |
+| `tests/test_login_copilot.sh` | Tests the Copilot login command offline with `--dry-run` and fake Docker. |
+| `tests/test_model_info.py` | Checks model capability and price entries for a model absent from the cost map. |
+| `tests/test_promotion.sh` | Tests promotion with local bare remotes and simulated GitHub responses. |
+| `tests/test_promotion_scan.sh` | Tests promotion with the real scanner, a scratch clone and local bare remotes. |
+| `tests/test_public_check.sh` | Tests public rules in a temporary repository with a scanner test double. |
+| `tests/test_public_hook.sh` | Tests the push ref guard and history ranges with local hook inputs. |
+| `tests/test_quota_router.py` | Tests quota-router account order, usage decisions and request handling with simulated inputs. |
+| `tests/test_reauth_codex.sh` | Tests account reauthorization in a temporary tree with fake Docker; reads no host tokens. |
+| `tests/test_responses_tool_finish.py` | Tests streamed tool arguments and finish reasons with synthetic event sequences. |
+| `tests/test_scan.sh` | Tests scanner rules, hooks and hook installation in temporary repositories; needs the scanner image already present. |
+| `tests/test_setup_remotes.sh` | Tests remote setup and tag fetching with a local repository in place of upstream. |
+| `tests/test_sol_capabilities.py` | Checks Codex Sol capability lookups with the pinned LiteLLM image and startup hooks. |
+| `tests/test_sync_local_models.py` | Checks that local-model refreshes keep the dedicated embedding route. |
+
+### Environment variables and build arguments
+
+The tables list configuration inputs, not temporary variables inside the scripts.
+The defaults come from `.env.example`, the Compose files, `docker-bake.hcl` and the scripts.
+A comment in `.env.example` is an optional setting, not an active value.
+
+Compose and route settings (`.env`):
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `LITELLM_MASTER_KEY` | Empty in the example; required by Compose | Gives administrator access to the gateway. Step 4 generates it. |
+| `LITELLM_SALT_KEY` | Empty in the example; required by Compose | Encrypts credentials in the database. Keep the generated value unchanged. |
+| `POSTGRES_PASSWORD` | Empty in the example; required by Compose | Authenticates the database user and forms part of `DATABASE_URL`. |
+| `UI_PASSWORD` | Empty in the example; required by Compose | Authenticates the admin UI login. Step 4 generates it. |
+| `UI_USERNAME` | `admin` | Names the admin UI user. |
+| `CODEX_MASTER_KEY` | Empty in the example; generated in step 4 | Authenticates gateway requests to Codex services; copy it into `secrets/codex.env`. |
+| `COPILOT_MASTER_KEY` | Empty in the example; generated in step 4 | Authenticates gateway requests to Copilot; copy it into `secrets/copilot.env`. |
+| `OPENROUTER_API_KEY` | Empty | Authenticates the `openrouter/*` route. |
+| `LOCAL_API_KEY` | `local-no-key` | Supplies the key for local model routes. |
+| `LOCAL_API_BASE` | `http://local-llm.example:8080/v1` | Supplies the endpoint for `local/example-model`. |
+| `ANTHROPIC_API_KEY` | Not set | Supplies the separate Anthropic credential; the example comment has a placeholder only. |
+| `GATEWAY_CONFIG` | Compose: `./config/gateway.example.yaml`; scripts: `.local/config/gateway.yaml` | Selects the gateway configuration. Set the host path before you recreate the gateway. |
+| `COPILOT_CONFIG` | `./config/copilot.yaml` | Selects the configuration that `compose.copilot.yaml` mounts. |
+| `GATEWAY_PORT` | `127.0.0.1:4321` | Sets the published host address and port; the container port stays 4000. |
+| `LOCAL_ENDPOINTS` | Not set | Gives `scripts/sync-local-models.py` comma-separated `name=url` pairs. |
+| `LOCAL_EMBEDDING_MODEL` | Not set | Names the dedicated embedding model; requires `LOCAL_EMBEDDING_BASE`. |
+| `LOCAL_EMBEDDING_BASE` | Not set | Gives the dedicated embedding endpoint; requires `LOCAL_EMBEDDING_MODEL`. |
+| `LOCAL_EMBEDDING_PROVIDER` | First endpoint name | Selects the provider name of the dedicated embedding route. |
+| `GATEWAY_IMAGE` | `litellm-gateway:local` | Selects the image of every service except `database`. |
+| `BASE_IMAGE` | The digest pin in `Dockerfile` | Selects the upstream image for a Compose build. Bake has the same pin. |
+| `COMPOSE_FILE` | Not set: Compose reads `compose.yaml` | Lists Compose files separated by `:`. Keep the host override file last. |
+
+`compose.yaml` also sets these container variables. They are not additional host inputs.
+
+| Variable | Value | Effect |
+| --- | --- | --- |
+| `HOME` | `/tmp` | Gives the proxy process a writable home path. |
+| `LITELLM_LOCAL_MODEL_COST_MAP` | `True` | Uses the cost map in the image. |
+| `LITELLM_TELEMETRY` | `False` | Disables LiteLLM telemetry. |
+| `LITELLM_DISABLE_NO_REDIS_WARNING` | `true` | Suppresses the Redis warning for a single-process proxy. |
+| `CHATGPT_TOKEN_DIR` | `/tokens` | Names the token directory for the shared proxy configuration. |
+| `DATABASE_URL` | Built from `POSTGRES_PASSWORD`, host `database`, port 5432 and database `litellm` | Connects the gateway to Postgres. |
+| `POSTGRES_DB`, `POSTGRES_USER` | `litellm` | Name the Postgres database and user. |
+
+Build inputs (`scripts/build.sh`, `docker-bake.hcl` and `Dockerfile`):
+
+| Variable or argument | Default | Effect |
+| --- | --- | --- |
+| `REGISTRY` | Empty | Adds the registry prefix to the image name. |
+| `IMAGE_NAME` | `litellm-gateway` | Sets the image name. |
+| `LITELLM_VERSION` | `1.103.0` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
+| `PORTABLE_VERSION` | Script: Git release description; direct bake: `0` | Sets the portable part of the image version. |
+| `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | Sets the image tag. |
+| `BASE_IMAGE` | The pin in `docker-bake.hcl`, equal to `Dockerfile` | Selects the LiteLLM base image; a mirror must keep its digest. |
+| `BASE_NAME`, `BASE_DIGEST` | Bake splits `BASE_IMAGE` at `@` | Set the base-image labels as Dockerfile arguments, not separate bake inputs. |
+| `PYTHON_IMAGE` | The digest pin in `docker-bake.hcl`, equal to `Dockerfile` | Supplies Python only for the pytest install stage. |
+| `PIP_INDEX_URL` | `https://pypi.org/simple` | Selects the package index for the test target. |
+| `PIP_CA_FILE` | Not set | Supplies a readable CA bundle through the BuildKit secret `pip-ca`. Relative paths start at the caller directory. |
+| `SOURCE_URL` | Empty | Sets `org.opencontainers.image.source`; use the public repository URL. |
+| `PROVENANCE` | `false` | Sets the release attestation: `false`, `min` or `max`. |
+| `SOURCE_DATE_EPOCH` | Script: commit time; direct Dockerfile: `0` | Sets file times and supplies the time for `CREATED`. |
+| `REVISION` | Script: `HEAD`, with `-dirty` for changes; direct bake: `unknown` | Sets the revision label. The script replaces an environment value. |
+| `CREATED` | Script: UTC time from `SOURCE_DATE_EPOCH`; direct bake: Unix epoch | Sets the creation-time label. The script replaces an environment value. |
+| `BUILDX_BUILDER` | Current Docker builder | Selects the Buildx builder; `scripts/build.sh --builder NAME` gives an explicit selection. |
+
+Scan inputs (`scripts/scan.sh`):
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `GITLEAKS_IMAGE` | The pinned image reference in step 9 | Selects a scanner image, for example a mirror. The scanner never pulls it. |
+| `SCAN_ENGINE` | `auto` | Uses Docker when available, else the pinned `gitleaks` binary. `docker` and `binary` select one engine. |
+| `SCAN_REF` | Current branch and tags | Sets the ref used to choose the default scan level. |
+| `SCAN_NAME_PREFIX` | `scan-` | Sets the name prefix of helper containers. |
+| `SCAN_IMAGE_METHOD` | `mount` | Selects image mounting for a full-image scan; another value uses the export fallback. |
+| `TMPDIR` | `/tmp` | Holds temporary files for scans, promotion and tests. |
+
+Promotion and prerequisites:
+
+| Variable or option | Default | Effect |
+| --- | --- | --- |
+| `PORTABLE_PUBLISH_NAME` | `litellm-gateway portable` | Sets the promotion author, committer and tagger name; `--name` takes precedence. |
+| `PORTABLE_PUBLISH_EMAIL` | The neutral `.invalid` address in `scripts/promote.sh` | Sets the promotion identity address; `--email` takes precedence. |
+| `PATH` | The caller environment | Selects the tools that `scripts/check-prereqs.sh` checks. Node must have major version 24. |
+| `DOCKER_HOST` | Not set by the check | Points Docker commands at the Podman socket; the Podman check prints a note when it is absent. |
+| `--runtime docker` / `--runtime podman` | Docker if its CLI exists, else Podman | Selects the prerequisite runtime checks. Podman needs version 4.0 or later and a Compose provider. |
+
+`scripts/check-prereqs.sh` exposes no environment override for its minimum versions.
+[docs/branches.md](docs/branches.md) gives the promotion options and approval rules.
+
+### Documents
+
+| Document | Subject |
+| --- | --- |
+| [README.md](README.md) | The quick start, branch rules and document list. |
+| [docs/branches.md](docs/branches.md) | Branches, tags, publication remotes and the release procedure. |
+| [docs/remotes.md](docs/remotes.md) | Fetch-only upstream setup and comparison of upstream releases. |
+| [docs/host-configuration.md](docs/host-configuration.md) | `.env`, the host gateway file and the host override file. |
+| [docs/image.md](docs/image.md) | Image content, build targets, variables, tags and `model_info` for a new model. |
+| [docs/secret-handling.md](docs/secret-handling.md) | Secret and host-value scans, public checks and Git hooks. |
+| [docs/mac.md](docs/mac.md) | Podman on a Mac, the Colima alternative and TLS inspection. |
+| [docs/ci.md](docs/ci.md) | Pipeline requirements and checks; it does not supply a pipeline file. |
+| [docs/operations.md](docs/operations.md) | Secret handling, backup, recovery and base-image updates. |
+| [docs/codex-services.md](docs/codex-services.md) | The supported account-service design, logins, reauthorization and quota router. |
+| [docs/codex-accounts.md](docs/codex-accounts.md) | The optional prototype for several ChatGPT accounts in one process. |
+| [docs/anthropic.md](docs/anthropic.md) | The separate Anthropic credential and its limits. |
+| [docs/copilot.md](docs/copilot.md) | The Copilot service, login, token directory and gateway routes. |
+| [docs/decision-routes.md](docs/decision-routes.md) | Pass-through routes to decision services. |
+| [docs/decision-router.md](docs/decision-router.md) | The prototype router for the virtual model `auto`. |
+| [docs/adr/0001-public-history-new-root.md](docs/adr/0001-public-history-new-root.md) | The decision to start public history from a new root. |
+| [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) | The development issue tracker and the rules for agent access. |
+| [docs/examples/Caddyfile.fragment](docs/examples/Caddyfile.fragment) | An example Caddy reverse-proxy route. |
+| [tests/README.md](tests/README.md) | Test commands, requirements and limits. |
+
+## How to update this file for a new portable release
 
 Check these parts for each release of `portable`. The right column names the source of truth.
 
@@ -708,5 +1012,21 @@ Check these parts for each release of `portable`. The right column names the sou
 | External hosts of the logins | The provider source of the pinned LiteLLM image |
 | Each line that starts with "Not verified" | Remove it when a run verifies the statement, for example a run on a Mac. |
 
-After an edit, run `scripts/scan.sh --level fail tree` and check that each relative link points to a file that exists.
 Keep the file generic: placeholders only, no host name, no account name and no private path.
+
+To refresh the file:
+
+1. Compare the quick start of [README.md](README.md) with the nine steps.
+   Keep each command; this file also separates the optional hooks, the provider keys and the scanner pull.
+2. Compare each row of the table with its source.
+   Change the text where the source changed, including the inventories in [Reference](#reference).
+3. Check each repository path with `git ls-files`.
+   Each relative link must name an existing file, and each anchor must match a heading of that file.
+4. Stage the changed files with `git add EXPLAINER.md README.md docs/branches.md`.
+   The checks read staged content as well as tracked working-tree content.
+5. Run `sh scripts/public_check.sh --level fail tree`.
+   The exit code must be 0.
+6. Run `scripts/scan.sh --level fail tree`.
+   The exit code must be 0.
+7. Run `sh tests/test_check_prereqs.sh`.
+   The last line must be `all tests passed`, with exit code 0.

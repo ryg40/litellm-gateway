@@ -92,7 +92,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 
 | Document | Content |
 | --- | --- |
-| [EXPLAINER.md](EXPLAINER.md) | Installation explainer: each install step with a drill-down, the components, how to remove the stack |
+| [EXPLAINER.md](EXPLAINER.md) | Install steps with drill-downs, terms, components, removal, script and variable references, release refresh procedure |
 | [docs/branches.md](docs/branches.md) | Branches, tags and which remote gets which branch |
 | [docs/remotes.md](docs/remotes.md) | The remote `upstream` and a comparison of upstream releases |
 | [docs/host-configuration.md](docs/host-configuration.md) | `.env` settings, the host gateway file, the host override file |
