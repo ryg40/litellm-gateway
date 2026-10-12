@@ -607,7 +607,7 @@ Warning: do not copy the refresh tokens of another client, for example a Codex C
 | Token file | `state/codexN/auth.json`, mode 0600. Only the service `codexN` refreshes it. |
 | External hosts | `auth.openai.com` for the login, `chatgpt.com` for the requests and for the usage check of `codex-router`. |
 | `scripts/enable-codex.py` | It reads `state/codexN/auth.json` and `config/gateway.codex.example.yaml`. It writes the host gateway file only. `--accounts 2` or `--accounts 3` sets the number of accounts. |
-| Routes written | `codex1/`, `codex2/`, `codex3/` and `codex-auto/` entries, and `router_settings.fallbacks` and `max_fallbacks`. The script keeps the other entries. `codexN/<model>` goes to `http://codexN:4000/v1` with `CODEX_MASTER_KEY`. `codex-auto/<model>` goes to `codex2`, then to `codex3`, then to `codex1`. |
+| Routes written | `codex1/`, `codex2/`, `codex3/` and `codex-auto/` entries, and `router_settings.fallbacks` and `max_fallbacks`. The script keeps the other entries. `codexN/<model>` goes to `http://codexN:4000/v1` with `CODEX_MASTER_KEY`. `codex-auto/<model>` defaults to `codex3`, then `codex2`, then `codex1`. With two accounts, it uses `codex2`, then `codex1`, with no `codex3` route or target. |
 | `codex-router` | An optional quota-aware router. It mounts `state/codex2` and `state/codex3` read-only. The default routes do not use it. |
 | Not touched | `.env`. The logins of other clients. The token directory of another account. |
 
@@ -861,7 +861,9 @@ For those tests, the test cases supply the description. The table also includes 
 | `tests/test_chatgpt_auth_file.py` | Tests the account-file hook offline with synthetic tokens and fake authentication endpoints. |
 | `tests/test_chatgpt_session_id.py` | Tests stable session ids with a local fake ChatGPT backend and no real account. |
 | `tests/test_check_prereqs.sh` | Tests prerequisite checks offline with fake tools on `PATH`. |
+| `tests/test_codex_cache_continuity.py` | Tests routing and session continuity with local proxies and a fake provider; measures no real cache percentage. |
 | `tests/test_codex_cost.py` | Checks Codex API-equivalent prices in the pinned proxy. |
+| `tests/test_codex_routing.py` | Checks native Codex account selection and fallback routes with synthetic logins and temporary gateway files. |
 | `tests/test_compose.sh` | Checks rendered Compose files in a temporary copy; starts no container and reads no host secrets. |
 | `tests/test_copilot_config.py` | Checks the service configuration, gateway route example and optional `COPILOT_PROPOSAL` file. |
 | `tests/test_create_env.py` | Tests `.env` creation and the placeholder refusal in `scripts/verify.py`. |

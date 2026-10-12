@@ -129,7 +129,7 @@ assert cmd[cmd.index("--app-dir") + 1] == "/opt/litellm-gateway/image/routers", 
 check "codex-router has the default order, the token mounts of that order and its start conditions" "$both" '
 r = s["codex-router"]
 order = r["environment"]["CODEX_ACCOUNT_ORDER"]
-assert order == "codex2,codex3,codex1", order
+assert order == "codex3,codex2,codex1", order
 # One read-only token mount for each account of the order except the last.
 mounts = {v["target"]: v for v in r["volumes"]}
 assert sorted(mounts) == ["/tokens/" + name for name in sorted(order.split(",")[:-1])], sorted(mounts)

@@ -167,9 +167,10 @@ class InstallTests(unittest.TestCase):
 class Upstream:
     """A fake backend on 127.0.0.1 for ChatGPT and for an OpenAI-compatible provider."""
 
-    def __init__(self):
+    def __init__(self, status_by_account=None, response_sse=None):
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         requests = self.requests = []
+        self.status_by_account = statuses = status_by_account if status_by_account is not None else {}
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
@@ -179,15 +180,19 @@ class Upstream:
                                  "session_id": self.headers.get_all("session_id") or [],
                                  "authorization": self.headers.get_all("authorization") or [],
                                  "account_id": self.headers.get_all("chatgpt-account-id") or []})
-                if self.path.endswith("/chat/completions"):
+                status = statuses.get(self.headers.get("chatgpt-account-id"), 200)
+                if status != 200:
+                    kind, answer = "application/json", json.dumps({"error": {
+                        "message": "simulated quota limit", "type": "usage_limit_reached"}})
+                elif self.path.endswith("/chat/completions"):
                     kind, answer = "application/json", json.dumps({
                         "id": "chatcmpl-1", "object": "chat.completion", "created": 1, "model": "gpt-x",
                         "choices": [{"index": 0, "finish_reason": "stop",
                                      "message": {"role": "assistant", "content": "ok"}}],
                         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}})
                 else:
-                    kind, answer = "text/event-stream", sse("ok")
-                self.send_response(200)
+                    kind, answer = "text/event-stream", response_sse(body) if response_sse else sse("ok")
+                self.send_response(status)
                 self.send_header("content-type", kind)
                 self.send_header("content-length", str(len(answer.encode())))
                 self.end_headers()

@@ -1,7 +1,7 @@
 """Ordered Codex account router. Only account workers own OAuth refresh tokens.
 
-CODEX_ACCOUNT_ORDER lists the account services in preference order, for example
-codex2,codex3,codex1. Each account but the last has a usage check and a block
+CODEX_ACCOUNT_ORDER lists the account services in preference order. The default is
+codex3,codex2,codex1. Each account but the last has a usage check and a block
 state. The last account is the final fallback: the router never asks for its
 usage and never spends its allowance on a guess.
 """
@@ -27,7 +27,7 @@ from chatgpt_session_id import cache_session_id
 
 USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
 CACHE_SECONDS = 60
-DEFAULT_ORDER = "codex2,codex3,codex1"
+DEFAULT_ORDER = "codex3,codex2,codex1"
 ACCOUNT_NAME = re.compile(r"codex[1-9][0-9]*\Z")
 
 log = logging.getLogger("quota_router")

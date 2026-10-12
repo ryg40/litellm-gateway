@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
@@ -26,7 +26,7 @@ def write_token(directory, name):
 
 class OrderTests(unittest.TestCase):
     def test_default_order(self):
-        self.assertEqual(router.account_order(None), ["codex2", "codex3", "codex1"])
+        self.assertEqual(router.account_order(None), ["codex3", "codex2", "codex1"])
 
     def test_custom_order(self):
         self.assertEqual(router.account_order(" codex1 ,codex2"), ["codex1", "codex2"])
@@ -241,92 +241,155 @@ class BlockTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ProxyTests(unittest.TestCase):
-    """Requests through the app with the default order codex2, codex3, codex1."""
+    """Requests through the app with the default order codex3, codex2, codex1."""
 
-    def invoke(self, responses, payload=None, blocked=(), logins=("codex2",), capture=None, order=None):
+    def invoke(self, responses, payload=None, blocked=(), logins=("codex3", "codex2"),
+               capture=None, order=None, exhausted=()):
         calls = []
         def handler(request):
             calls.append(request.url.host)
             if capture is not None:
                 capture.append(request.content)
-            code, content = responses[len(calls)-1]
+            reply = responses[len(calls)-1]
+            if isinstance(reply, httpx.HTTPError):
+                raise reply
+            if isinstance(reply, httpx.Response):
+                return reply
+            code, content = reply
             content_type = 'text/event-stream' if content.startswith(b'data:') else 'application/json'
             return httpx.Response(code, content=content, headers={'content-type': content_type})
         with tempfile.TemporaryDirectory() as tmp:
             for name in logins:
                 write_token(tmp, name)
             env = {'CODEX_MASTER_KEY': 'test-key', 'CODEX_TOKEN_DIR': tmp}
-            if order is not None:
-                env['CODEX_ACCOUNT_ORDER'] = order
             with patch.dict('os.environ', env):
+                os.environ.pop('CODEX_ACCOUNT_ORDER', None)
+                if order is not None:
+                    os.environ['CODEX_ACCOUNT_ORDER'] = order
                 with TestClient(router.app) as client:
                     original = router.app.state.client
                     mock = httpx.AsyncClient(transport=httpx.MockTransport(handler))
                     router.app.state.client = mock
                     for name, q in router.app.state.router.quotas.items():
-                        q.available = True
+                        q.available = None if name in exhausted else True
                         q.checked = q.clock()
                         q.blocked_until = q.clock() + 60 if name in blocked else 0
-                    result = client.post('/v1/chat/completions', headers={'Authorization': 'Bearer test-key'},
-                                         json=payload or {'model': 'test', 'messages': []})
-                    self.quotas = router.app.state.router.quotas
-                    client.portal.call(mock.aclose)
-                    router.app.state.client = original
+                        q.usage = AsyncMock(return_value=quota_payload(
+                            100 if name in exhausted else 0, reset=q.clock() + 3600))
+                    try:
+                        result = client.post('/v1/chat/completions', headers={'Authorization': 'Bearer test-key'},
+                                             json=payload or {'model': 'test', 'messages': []})
+                        self.quotas = router.app.state.router.quotas
+                    finally:
+                        client.portal.call(mock.aclose)
+                        router.app.state.client = original
         return result, calls
 
     def test_primary_only(self):
         result, calls = self.invoke([(200, b'{"choices": []}')])
-        self.assertEqual(calls, ['codex2'])
-        self.assertEqual(result.headers['x-codex-account'], 'codex2')
-
-    def test_blocked_preferred_selects_last(self):
-        result, calls = self.invoke([(200, b'{}')], blocked=('codex2',))
-        self.assertEqual(calls, ['codex1'])
-
-    def test_blocked_preferred_selects_third_when_logged_in(self):
-        result, calls = self.invoke([(200, b'{}')], blocked=('codex2',), logins=('codex2', 'codex3'))
         self.assertEqual(calls, ['codex3'])
         self.assertEqual(result.headers['x-codex-account'], 'codex3')
 
-    def test_429_falls_back_once_without_third_login(self):
-        result, calls = self.invoke([(429, b'{}'), (200, b'{}')])
+    def test_both_blocked_select_last(self):
+        result, calls = self.invoke([(200, b'{}')], blocked=('codex3', 'codex2'))
+        self.assertEqual(calls, ['codex1'])
+
+    def test_blocked_preferred_selects_second(self):
+        result, calls = self.invoke([(200, b'{}')], blocked=('codex3',), logins=('codex3', 'codex2'))
+        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(result.headers['x-codex-account'], 'codex2')
+
+    def test_exhausted_preferred_selects_second(self):
+        result, calls = self.invoke([(200, b'{}')], exhausted=('codex3',))
+        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(self.quotas['codex3'].block_reason, 'usage')
+
+    def test_both_exhausted_select_last(self):
+        result, calls = self.invoke([(200, b'{}')], exhausted=('codex3', 'codex2'))
+        self.assertEqual(calls, ['codex1'])
+        self.assertTrue(all(q.block_reason == 'usage' for q in self.quotas.values()))
+        self.assertNotIn('codex1', self.quotas)
+
+    def test_missing_preferred_login_selects_second(self):
+        result, calls = self.invoke([(200, b'{}')], logins=('codex2',))
+        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(result.headers['x-codex-account'], 'codex2')
+        self.assertEqual(self.quotas['codex3'].usage.await_count, 0)
+
+    def test_both_missing_logins_select_last(self):
+        result, calls = self.invoke([(200, b'{}')], logins=())
+        self.assertEqual(calls, ['codex1'])
+        self.assertTrue(all(q.usage.await_count == 0 for q in self.quotas.values()))
+
+    def test_429_falls_back_once_without_preferred_login(self):
+        result, calls = self.invoke([(429, b'{}'), (200, b'{}')], logins=('codex2',))
         self.assertEqual(calls, ['codex2', 'codex1'])
         self.assertEqual(result.headers['x-codex-account'], 'codex1')
 
-    def test_429_moves_to_third_account(self):
-        result, calls = self.invoke([(429, b'{}'), (200, b'{}')], logins=('codex2', 'codex3'))
-        self.assertEqual(calls, ['codex2', 'codex3'])
-        self.assertEqual(result.headers['x-codex-account'], 'codex3')
-        self.assertEqual(self.quotas['codex2'].block_reason, '429')
-        self.assertIsNone(self.quotas['codex3'].block_reason)
+    def test_429_moves_to_second_account(self):
+        result, calls = self.invoke([(429, b'{}'), (200, b'{}')], logins=('codex3', 'codex2'))
+        self.assertEqual(calls, ['codex3', 'codex2'])
+        self.assertEqual(result.headers['x-codex-account'], 'codex2')
+        self.assertEqual(self.quotas['codex3'].block_reason, '429')
+        self.assertIsNone(self.quotas['codex2'].block_reason)
 
     def test_429_cascades_through_all_accounts(self):
-        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (200, b'{}')], logins=('codex2', 'codex3'))
-        self.assertEqual(calls, ['codex2', 'codex3', 'codex1'])
+        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (200, b'{}')], logins=('codex3', 'codex2'))
+        self.assertEqual(calls, ['codex3', 'codex2', 'codex1'])
         self.assertEqual(result.headers['x-codex-account'], 'codex1')
-        self.assertEqual(self.quotas['codex2'].block_reason, '429')
         self.assertEqual(self.quotas['codex3'].block_reason, '429')
+        self.assertEqual(self.quotas['codex2'].block_reason, '429')
 
     def test_all_exhausted_no_loop(self):
-        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (429, b'{}')], logins=('codex2', 'codex3'))
+        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (429, b'{}')], logins=('codex3', 'codex2'))
         self.assertEqual(result.status_code, 429)
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls, ['codex3', 'codex2', 'codex1'])
+        self.assertNotIn('codex1', self.quotas)
 
     def test_custom_order(self):
         result, calls = self.invoke([(429, b'{}'), (200, b'{}')], logins=('codex1',), order='codex1,codex2')
         self.assertEqual(calls, ['codex1', 'codex2'])
+        self.assertEqual(set(self.quotas), {'codex1'})
+
+    def test_previous_default_is_an_explicit_custom_order(self):
+        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (200, b'{}')],
+                                    order='codex2,codex3,codex1')
+        self.assertEqual(calls, ['codex2', 'codex3', 'codex1'])
 
     def test_other_errors_do_not_spend_later_accounts(self):
         for status in (400, 401, 403, 500):
-            result, calls = self.invoke([(status, b'{}')], logins=('codex2', 'codex3'))
+            result, calls = self.invoke([(status, b'{}')], logins=('codex3', 'codex2'))
             self.assertEqual(result.status_code, status)
-            self.assertEqual(calls, ['codex2'])
+            self.assertEqual(calls, ['codex3'])
+
+    def test_network_error_does_not_spend_later_accounts(self):
+        result, calls = self.invoke([httpx.ConnectError('unavailable')])
+        self.assertEqual(result.status_code, 502)
+        self.assertEqual(calls, ['codex3'])
+
+    def test_partial_stream_is_not_retried(self):
+        result, calls = self.invoke([(200, b'data: partial\n\n')],
+                                    payload={'model': 'test', 'stream': True})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.text, 'data: partial\n\n')
+        self.assertEqual(calls, ['codex3'])
+
+    def test_stream_error_after_first_bytes_is_not_retried(self):
+        class FailingStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b'data: partial\n\n'
+                raise httpx.ReadError('interrupted stream')
+        sent = []
+        response = httpx.Response(200, headers={'content-type': 'text/event-stream'}, stream=FailingStream())
+        with self.assertRaises(httpx.ReadError):
+            self.invoke([response], payload={'model': 'test', 'stream': True}, capture=sent)
+        self.assertEqual(len(sent), 1)
 
     def test_streaming(self):
         result, calls = self.invoke([(200, b'data: ok\n\ndata: [DONE]\n\n')],
                                     payload={'model': 'test', 'stream': True})
         self.assertIn('data: [DONE]', result.text)
-        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(calls, ['codex3'])
 
     def test_nonstream_aggregation(self):
         chunk = {'id': 'chatcmpl-test', 'object': 'chat.completion.chunk', 'created': 1000,
@@ -339,7 +402,7 @@ class ProxyTests(unittest.TestCase):
     def test_partial_nonstream_is_not_retried(self):
         result, calls = self.invoke([(200, b'data: {}\n\n')])
         self.assertEqual(result.status_code, 502)
-        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(calls, ['codex3'])
 
     def test_session_id_derived_from_prefix(self):
         base = {'model': 'gpt-6-luna', 'messages': [{'role': 'system', 'content': 'rules'}, {'role': 'user', 'content': 'first'}]}
@@ -359,10 +422,22 @@ class ProxyTests(unittest.TestCase):
     def test_upstream_request_carries_session_id(self):
         sent = []
         result, calls = self.invoke([(200, b'{"choices": []}')], payload={'model': 'test', 'messages': [{'role': 'user', 'content': 'hi'}]}, capture=sent)
-        self.assertEqual(calls, ['codex2'])
+        self.assertEqual(calls, ['codex3'])
         body = json.loads(sent[0])
         self.assertTrue(body['litellm_session_id'].startswith('prefix-'))
         self.assertTrue(body['stream'])
+
+    def test_429_keeps_session_id_and_request_parameters(self):
+        sent = []
+        payload = {'model': 'test', 'messages': [{'role': 'user', 'content': 'hi'}],
+                   'stream': True, 'reasoning_effort': 'xhigh', 'tool_choice': 'required',
+                   'tools': [{'type': 'function', 'function': {'name': 'ping'}}],
+                   'litellm_session_id': 'client-session'}
+        result, calls = self.invoke([(429, b'{}'), (429, b'{}'), (200, b'data: [DONE]\n\n')],
+                                    payload=payload, capture=sent)
+        self.assertEqual(calls, ['codex3', 'codex2', 'codex1'])
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual([json.loads(body) for body in sent], [payload] * 3)
 
     def test_continuation_rejected(self):
         result, calls = self.invoke([], payload={'previous_response_id': 'resp_test'})
@@ -371,25 +446,25 @@ class ProxyTests(unittest.TestCase):
 
     def test_status_reports_accounts(self):
         with tempfile.TemporaryDirectory() as tmp:
-            write_token(tmp, 'codex2')
+            write_token(tmp, 'codex3')
             with patch.dict('os.environ', {'CODEX_MASTER_KEY': 'test-key', 'CODEX_TOKEN_DIR': tmp}), TestClient(router.app) as client:
-                q = router.app.state.router.quotas['codex2']
+                q = router.app.state.router.quotas['codex3']
                 now = q.clock()
                 q.blocked_until, q.block_reason, q.blocked_since, q.checked = now + 30, '429', now, now
                 body = client.get('/routing/status', headers={'Authorization': 'Bearer test-key'}).json()
-                self.assertEqual(body['order'], ['codex2', 'codex3', 'codex1'])
-                self.assertEqual(body['preferred_account'], 'codex2')
+                self.assertEqual(body['order'], ['codex3', 'codex2', 'codex1'])
+                self.assertEqual(body['preferred_account'], 'codex3')
                 self.assertEqual(body['selected_account'], 'codex1')
                 self.assertEqual(body['block_reason'], '429')
                 self.assertEqual(body['blocked_since'], router.iso(now))
-                self.assertEqual(body['codex2_blocked_until'], now + 30)
-                self.assertEqual(body['accounts']['codex2']['block_reason'], '429')
-                self.assertTrue(body['accounts']['codex2']['logged_in'])
-                self.assertFalse(body['accounts']['codex3']['logged_in'])
+                self.assertEqual(body['codex3_blocked_until'], now + 30)
+                self.assertEqual(body['accounts']['codex3']['block_reason'], '429')
+                self.assertTrue(body['accounts']['codex3']['logged_in'])
+                self.assertFalse(body['accounts']['codex2']['logged_in'])
                 self.assertFalse(body['accounts']['codex1']['usage_checked'])
                 q.blocked_until, q.block_reason, q.blocked_since, q.available = 0, None, None, True
                 body = client.get('/routing/status', headers={'Authorization': 'Bearer test-key'}).json()
-                self.assertEqual((body['selected_account'], body['block_reason'], body['blocked_since']), ('codex2', None, None))
+                self.assertEqual((body['selected_account'], body['block_reason'], body['blocked_since']), ('codex3', None, None))
                 self.assertNotIn('secret', json.dumps(body))
 
     def test_authentication(self):

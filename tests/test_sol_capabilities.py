@@ -66,7 +66,7 @@ class SolCapabilitiesTest(unittest.TestCase):
         self.assertEqual(config, json.loads(text), "the YAML and the JSON reading differ")
         entries = {entry["model_name"]: entry for entry in config["model_list"]}
         self.assertEqual(len(entries), len(config["model_list"]))
-        for prefix in ("codex1", "codex2", "codex-auto"):
+        for prefix in ("codex1", "codex2", "codex3", "codex-auto"):
             self.assertEqual(entries[f"{prefix}/sol"]["litellm_params"]["model"], "openai/gpt-6.1-sol")
             self.assertEqual(entries[f"{prefix}/gpt-6.1-sol"]["litellm_params"]["model"], "openai/gpt-6.1-sol")
             self.assertEqual(entries[f"{prefix}/gpt-6-sol"]["litellm_params"]["model"], "openai/gpt-6-sol")
@@ -160,7 +160,7 @@ class SolCapabilitiesTest(unittest.TestCase):
                     module.ROOT = original_root
                 router = json.loads(path.read_text())["router_settings"]
                 self.assertEqual(router["max_fallbacks"], expected)
-                targets = [f"codex{n}/sol" for n in (3, 1)][3 - logins:]
+                targets = [f"codex{n}/sol" for n in (2, 1)][3 - logins:]
                 self.assertIn({"codex-auto/sol": targets}, router["fallbacks"])
                 # Each fallback target of a route can run.
                 self.assertTrue(all(len(t) <= router["max_fallbacks"]

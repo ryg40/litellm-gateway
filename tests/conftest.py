@@ -21,6 +21,7 @@ HOOK_TESTS = {
     "test_chatgpt_auth_file.py",
     "test_chatgpt_session_id.py",
     "test_codex_cost.py",
+    "test_codex_cache_continuity.py",
     "test_model_info.py",
     "test_quota_router.py",
     "test_responses_tool_finish.py",

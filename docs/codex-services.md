@@ -62,7 +62,7 @@ If the account requires it, enable device-code authorization in the security set
    python3 scripts/enable-codex.py
    ```
 
-   Without `--accounts`, the script counts the complete logins from `codex1` up. With two logins it adds no `codex3/` route and no `codex3/` fallback. `--accounts 2` or `--accounts 3` sets the number.
+   Without `--accounts`, the script counts the complete logins from `codex1` up. With two logins, `codex-auto/` targets `codex2` and falls back only to `codex1`. No route, primary URL or fallback uses `codex3`. `--accounts 2` or `--accounts 3` sets the number.
 
 5. Start the account services and recreate the gateway.
 
@@ -84,11 +84,12 @@ To include the services in each `docker compose` command, add `compose.codex.yam
 
 | Accounts | Routes | Services |
 | --- | --- | --- |
-| Three | `python3 scripts/enable-codex.py` (or `--accounts 3`): `codex1/`, `codex2/`, `codex3/` and `codex-auto/` with the fallbacks `codex3`, then `codex1`. | Start all services (step 5). |
-| Two | `python3 scripts/enable-codex.py` (or `--accounts 2`): no `codex3/` route, and `codex-auto/` falls back to `codex1` only. | Start all services, then `docker compose -f compose.yaml -f compose.codex.yaml stop codex3`. Without a login, `codex3` stays unhealthy and prints a device code again and again. |
+| Three | `python3 scripts/enable-codex.py` (or `--accounts 3`): `codex1/`, `codex2/`, `codex3/` and `codex-auto/` with primary `codex3` and fallbacks `codex2`, then `codex1`. | Start all services (step 5). |
+| Two | `python3 scripts/enable-codex.py` (or `--accounts 2`): no `codex3/` route, and `codex-auto/` uses primary `codex2` with fallback `codex1` only. | Start all services, then `docker compose -f compose.yaml -f compose.codex.yaml stop codex3`. Without a login, `codex3` stays unhealthy and prints a device code again and again. |
 | One | The script needs at least two logins and stops. Copy the `codex1/` entries of `config/gateway.codex.example.yaml` into the host gateway file by hand. | `docker compose -f compose.yaml -f compose.codex.yaml up -d codex1`, then `docker compose up -d --force-recreate gateway`. Do not start `codex-router`: it waits for a healthy `codex2`. |
 
 To add an account later, run its login, run `scripts/enable-codex.py` again, and recreate the services (step 5). The script replaces the `codex1/`, `codex2/`, `codex3/` and `codex-auto/` entries of the host gateway file and keeps the other entries.
+Each run rebuilds the automatic primary and fallbacks for the selected accounts. Selecting two accounts removes previous `codex3` routes and targets.
 Not verified: a stack with one account.
 
 ## Reauthorize an account
@@ -155,20 +156,21 @@ Not verified: whether the old login stays valid at ChatGPT after a new login, so
 
 ## Routes
 
-`scripts/enable-codex.py` copies the routes of `config/gateway.codex.example.yaml`:
+`scripts/enable-codex.py` uses `config/gateway.codex.example.yaml` and selects the automatic primary and fallbacks for the available accounts:
 
 | Route | Target |
 | --- | --- |
 | `codex1/<model>` | Account 1 |
 | `codex2/<model>` | Account 2 |
 | `codex3/<model>` | Account 3 |
-| `codex-auto/<model>` | Account 2 first, then account 3, account 1 last |
+| `codex-auto/<model>` | Account 3 first, then account 2, account 1 last. With two accounts: account 2, then account 1. |
 
 Each route exists for `luna`, `sol` and `astra`, and for the full upstream IDs `gpt-6-luna`, `gpt-6-sol`, `gpt-6.1-sol` and `gpt-6-astra`.
 The short name `sol` targets `gpt-6.1-sol`. A full ID is a pinned name and does not move.
 `gpt-6-terra` is not configured: ChatGPT Codex rejected it for subscription accounts. Check model availability for each account before you add a route.
 
-`codex-auto/*` uses the native fallback of LiteLLM. The route goes to `codex2`, and `router_settings.fallbacks` sends a failed request to `codex3`, then to `codex1` (`max_fallbacks: 2`).
+`codex-auto/*` uses the native fallback of LiteLLM. The three-account default is `codex3`, then `codex2`, then `codex1` (`max_fallbacks: 2`).
+With two accounts, the primary is `codex2` and the sole fallback is `codex1`.
 `scripts/enable-codex.py` sets `router_settings.max_fallbacks` of the host gateway file to the number of fallback accounts (1 for two accounts, 2 for three) when the file has no value or a lower one. It keeps a higher value.
 Each `codex-auto` entry has `cooldown_time: 60` and `RateLimitErrorAllowedFails: 0`.
 [codex-accounts.md](codex-accounts.md) compares this fallback with `codex-router`.
@@ -190,6 +192,13 @@ The hook `image/hooks/chatgpt_session_id.py` sets that id in each proxy that has
 - Two conversations with the same model, the same system text and the same first user message share one id. This is intended: they share the same cached prefix.
 - `codex-router` derives the id with the same function and sends it to the account service as `litellm_session_id`.
 
+A stable session id does not transfer the prompt cache between accounts. The first request on another account can be cold.
+With unchanged eligibility, the preference order keeps the selected account. It does not provide permanent account affinity.
+Native routes prefer the primary again after its cooldown expires. The quota router prefers a higher-priority account after its login or quota recovers.
+
+`tests/test_codex_cache_continuity.py` checks the actual upstream headers with real proxies and fake providers for both automatic designs.
+It covers repeated and growing conversations, explicit routes, fallbacks, tools and recovery. These tests do not measure a real cache percentage.
+
 ### Reasoning effort and tool calls
 
 Luna and Sol requests keep `reasoning_effort=xhigh` and tool-choice support through the gateway and the account proxies.
@@ -210,9 +219,10 @@ Not verified: non-streaming requests through `codex1/*` and `codex2/*`. `codex-r
 `compose.codex.yaml` starts `codex-router`. The routes of `config/gateway.codex.example.yaml` do not use it: they use the native fallback.
 The router stays in the image as an alternative for `codex-auto/*`. To use it, a host gateway file points the `codex-auto` entries at `http://codex-router:4000/v1` and has no fallbacks for them.
 
-`CODEX_ACCOUNT_ORDER` in `compose.codex.yaml` lists the account services in preference order. The default is `codex2,codex3,codex1`.
+`CODEX_ACCOUNT_ORDER` in `compose.codex.yaml` lists the account services in preference order. The default is `codex3,codex2,codex1`.
 The first name is the preferred account. The last name is the final fallback: the router never asks for its usage and mounts no token of it.
 Each other account has a read-only token mount and its own block state.
+Without a `codex3` login, the default order skips it and uses `codex2`, then `codex1`. The mounts and health dependencies support two-account use.
 
 Another order needs two settings in one override file: `CODEX_ACCOUNT_ORDER`, and a read-only mount `./state/<name>:/tokens/<name>:ro` for each account except the last.
 `compose.codex.yaml` mounts only `state/codex2` and `state/codex3`. The router reads `/tokens/<name>/auth.json`; without the mount it finds no login and skips the account (`skipped source=no-login`).

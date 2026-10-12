@@ -147,5 +147,23 @@ scripts/scan.sh --level fail tree
 scripts/public_check.sh --level fail tree
 ```
 
+## Codex cache continuity
+
+`tests/test_codex_cache_continuity.py` uses the account and upstream fixtures of
+`tests/test_chatgpt_auth_file.py` and `tests/test_chatgpt_session_id.py`.
+It starts three real account proxies and three local gateways, plus the quota router.
+The account proxies load `config/codex.yaml` with the authentication-file hook off.
+Synthetic tokens and temporary gateway files stay under a temporary directory.
+Only loopback HTTP requests reach fake providers; the pinned test build runs with no external network.
+
+The tests check actual upstream `session_id` headers, both native account counts,
+quota selection, ordered fallbacks, model aliases, growing turns and streaming tools.
+Local test-only controls reset native cooldown state between cases and simulate its expiry.
+A fake clock advances quota revalidation without changing the production policy.
+All processes and temporary files are removed by fixture cleanup.
+
+The tests prove routing and session continuity, not a real cache hit percentage.
+A stable id does not transfer a cache between accounts. Recovery can preempt a lower-priority account.
+
 The package index of the `test` target is `PIP_INDEX_URL`, and `PIP_CA_FILE`
 gives a CA bundle for it (`docs/ci.md`).

@@ -14,6 +14,7 @@ import gateway_config  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CODEX_ROUTES = gateway_config.REPO / "config/gateway.codex.example.yaml"
 MAX_ACCOUNTS = 3
+DEFAULT_ACCOUNT_ORDER = ("codex3", "codex2", "codex1")
 PREFIXES = tuple(f"codex{n}/" for n in range(1, MAX_ACCOUNTS + 1)) + ("codex-auto/",)
 
 
@@ -43,19 +44,26 @@ def main(argv=()):
             raise SystemExit(f"Account {account} has no complete login")
     keep = tuple(f"codex{n}/" for n in range(1, accounts + 1)) + ("codex-auto/",)
 
+    order = [name for name in DEFAULT_ACCOUNT_ORDER if f"{name}/" in keep]
     routes = json.loads(CODEX_ROUTES.read_text())
+    for entry in routes["model_list"]:
+        if entry["model_name"].startswith("codex-auto/"):
+            entry["litellm_params"]["api_base"] = f"http://{order[0]}:4000/v1"
     path, config = gateway_config.load(ROOT)
     config["model_list"] = [entry for entry in config["model_list"]
                             if not entry["model_name"].startswith(PREFIXES)]
     config["model_list"].extend(entry for entry in routes["model_list"] if entry["model_name"].startswith(keep))
     router = config.setdefault("router_settings", {})
-    router["fallbacks"] = [item for item in router.get("fallbacks", [])
-                           if not any(name.startswith(PREFIXES) for name in item)]
-    for item in routes["router_settings"]["fallbacks"]:
-        kept = {source: [t for t in targets if t.startswith(keep)] for source, targets in item.items()}
-        kept = {source: targets for source, targets in kept.items() if targets}
-        if kept:
-            router["fallbacks"].append(kept)
+    kept_fallbacks = [{name: targets for name, targets in item.items()
+                       if not name.startswith(PREFIXES)} for item in router.get("fallbacks", [])]
+    router["fallbacks"] = [item for item in kept_fallbacks if item]
+    # Rebuild from the selected accounts, not filtered template targets: an
+    # omitted preferred account must not become a self fallback on codex2.
+    for entry in routes["model_list"]:
+        source = entry["model_name"]
+        if source.startswith("codex-auto/"):
+            model = source.split("/", 1)[1]
+            router["fallbacks"].append({source: [f"{name}/{model}" for name in order[1:]]})
     # Each codex-auto route has accounts - 1 fallback targets. Raise a lower value of
     # the host file, for example 1 from a file for two accounts; keep a higher one.
     router["max_fallbacks"] = max(router.get("max_fallbacks") or 0, accounts - 1)

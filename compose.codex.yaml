@@ -67,7 +67,7 @@ services:
       CODEX_REQUEST_TIMEOUT_SECONDS: "555"
       # Preference order. The last account is the final fallback and has no usage check,
       # so the router mounts no token of it. An account without a login is skipped.
-      CODEX_ACCOUNT_ORDER: "codex2,codex3,codex1"
+      CODEX_ACCOUNT_ORDER: "codex3,codex2,codex1"
     volumes:
       - ./state/codex2:/tokens/codex2:ro
       - ./state/codex3:/tokens/codex3:ro
