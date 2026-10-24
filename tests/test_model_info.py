@@ -16,7 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "config/model-info.example.yaml"
-NEW = "gpt-6.1-sol"
+NEW = "gpt-6.1-gateway-test-unknown"
 PRICES = {"input_cost_per_token": 2, "output_cost_per_token": 10,
           "cache_read_input_token_cost": 0.1, "cache_creation_input_token_cost": 2.5}
 FLAGS = ("supports_reasoning", "supports_xhigh_reasoning_effort",
@@ -34,7 +34,7 @@ import json, sys
 import litellm
 from litellm import Router
 
-NEW = "gpt-6.1-sol"
+NEW = "gpt-6.1-gateway-test-unknown"
 TOOLS = [{"type": "function", "function": {
     "name": "ping", "description": "Return pong",
     "parameters": {"type": "object", "properties": {}}}}]
@@ -66,7 +66,7 @@ from litellm import Router
 from litellm.litellm_core_utils.get_model_cost_map import refetch_model_cost_map
 from litellm.proxy import proxy_server
 
-NEW = "gpt-6.1-sol"
+NEW = "gpt-6.1-gateway-test-unknown"
 router = Router(model_list=json.loads(sys.argv[1]), num_retries=0)
 
 def costs():
@@ -191,7 +191,7 @@ def run(model_list, driver=DRIVER, *arguments):
 class ModelInfoTemplateTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.example = yaml.safe_load(EXAMPLE.read_text())
+        cls.example = yaml.safe_load(EXAMPLE.read_text().replace("gpt-6.1-sol", NEW))
 
     def test_example_has_the_three_sections_and_the_required_keys(self):
         self.assertEqual(set(self.example), {*SECTIONS, "account"})
@@ -304,7 +304,7 @@ class ModelInfoTemplateTest(unittest.TestCase):
         names = [entry["model_name"] for entry in entries]
         result = run(entries)
         self.assertEqual(result["requests"], {name: "ok" for name in names})
-        for model in ("gpt-6-luna", "gpt-6-sol", NEW):
+        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol"):
             self.assertIn(model, result["ids"])
         result = run(entries, SWAP_DRIVER)
         self.assertNotEqual(result["map_before"], result["map_after"], "the cost map was not replaced")

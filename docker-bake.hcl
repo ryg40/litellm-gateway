@@ -17,7 +17,7 @@ variable "IMAGE_NAME" {
 
 # LiteLLM version of BASE_IMAGE. Change both together.
 variable "LITELLM_VERSION" {
-  default = "1.103.0"
+  default = "1.106.2"
 }
 
 # Version X.Y.Z of the portable-vX.Y.Z release tag of this repo, for example 0.1.0.
@@ -44,9 +44,9 @@ variable "SOURCE_URL" {
   default = ""
 }
 
-# Index digest of LiteLLM 1.103.0. A CI system can give a mirror: <mirror>/litellm@sha256:<digest>.
+# Index digest of LiteLLM 1.106.2. A CI system can give a mirror: <mirror>/litellm@sha256:<digest>.
 variable "BASE_IMAGE" {
-  default = "ghcr.io/berriai/litellm@sha256:bd089afdcd35b894b14a93f9743cdc8b591f82da1a38dd43a010a7b0c9de5fd7"
+  default = "ghcr.io/berriai/litellm@sha256:7294b90f868c5c38c99b83021c7ba46f9b439e95f8e32964c925c7d2563a03f7"
 }
 
 # Provenance attestation of the release: "false", "min" or "max". An attestation

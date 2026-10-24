@@ -20,14 +20,7 @@ A client sends `"model": "auto"` to `/v1/chat/completions`. A LiteLLM pre-call h
 The hook then sets `model` from the table in the routes file (`DECISION_ROUTES`, see `config/decision-routes.example.yaml`). The table, the thresholds
 and the question text are in that file, not in code. Requests for any other model are not touched.
 
-```mermaid
-flowchart LR
-  C[client model=auto] --> H[pre-call hook]
-  H -- last user message, 150 ms timeout --> V[decision service decision-service:8000]
-  V -- route, hard, private --> H
-  H -- rewritten model --> R[LiteLLM router] --> M[llama-swap / vLLM model]
-  H -- one JSON line --> L[/state/decision-router.jsonl/]
-```
+The view "Decision router for model=auto" of [architecture.html](architecture.html#view=decision) shows this flow as a graph, with a tour through the rules.
 
 ## Rules, in order
 

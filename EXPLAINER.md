@@ -100,7 +100,7 @@ Sections: [Terms](#terms), [Overview](#overview), [Prerequisites](#prerequisites
 ## Overview
 
 The stack is an OpenAI-compatible gateway. A client sends a request to the gateway. The gateway sends it to a provider.
-The gateway is LiteLLM 1.103.0 with the hooks and routers of this repo. Docker Compose runs it.
+The gateway is LiteLLM 1.106.2 with the hooks and routers of this repo. Docker Compose runs it.
 The base install has two services: `gateway` and `database`. The other services are optional and off by default.
 
 ```text
@@ -113,6 +113,8 @@ The base install has two services: `gateway` and `database`. The other services 
                                  |       +--> codex-router              optional, :4000
                                  |       +--> copilot                   optional, :4000
 ```
+
+[docs/architecture.html](docs/architecture.html) shows these parts as an interactive graph with views, tours and a path finder; `python3 scripts/build-architecture-html.py` builds it.
 
 ### Footprint of the base install
 
@@ -248,7 +250,7 @@ Expected result: the second command prints `upstream: configuration is correct` 
 | External hosts | None. The script fetches nothing. |
 | Options | `--check` changes nothing: exit 0 for a correct configuration, exit 1 for a wrong one. `UPSTREAM_URL` in the environment names a mirror. |
 | Not touched | The remote `origin`. The script prints its URL without credentials. |
-| Later use | `scripts/fetch-upstream.sh v1.103.0` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
+| Later use | `scripts/fetch-upstream.sh v1.106.2` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
 
 </details>
 
@@ -384,7 +386,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 | Compose file and services | `compose.yaml`: `gateway` and `database`. |
 | Files read | `compose.yaml`, `.env`, `Dockerfile`, `.dockerignore`, `image/hooks/`, `image/routers/`. |
 | Image built | `litellm-gateway:local`, the target `gateway` of `Dockerfile`: the LiteLLM base image plus `image/hooks/` and `image/routers/`. |
-| Images pulled | `ghcr.io/berriai/litellm@sha256:bd089afd...` (LiteLLM 1.103.0) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
+| Images pulled | `ghcr.io/berriai/litellm@sha256:7294b90f...` (LiteLLM 1.106.2) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
 | Containers | `litellm-gateway-1` and `litellm-database-1`. The gateway runs as the user `1000:1000`, with no capability and with `no-new-privileges`. Each container has `restart: unless-stopped` and keeps at most 3 log files of 10 MB. |
 | Network and volume | The network `litellm_default`: both services use only this network. The volume `litellm_postgres-data`, at `/var/lib/postgresql/data` of `database`. |
 | Ports | `gateway` listens on 4000 in the container. Compose publishes it on `127.0.0.1:4321`; `GATEWAY_PORT` changes the address. `database` listens on 5432 and publishes no port. |
@@ -397,7 +399,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 Two other ways to get the image ([docs/image.md](docs/image.md)):
 
 - `scripts/build.sh` builds the same target with `docker buildx bake -f docker-bake.hcl`. It first runs the target `smoke`, which starts Python in the image.
-  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.103.0-p<portable version>`.
+  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.106.2-p<portable version>`.
   Compose uses that image only when `GATEWAY_IMAGE` in `.env` names it. The script pushes nothing without `--push`.
 - A released image: set `GATEWAY_IMAGE` in `.env` to the registry name with its index digest. Then run `docker compose up -d` without `--build`.
 
@@ -738,7 +740,7 @@ They run as the user `1000:1000` with no capability. They reach each other by se
 
 | Layer | Content |
 | --- | --- |
-| Base image | The upstream LiteLLM 1.103.0 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
+| Base image | The upstream LiteLLM 1.106.2 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
 | `image/hooks/` | The build copies these files to `/opt/litellm-gateway/image/hooks/`. `PYTHONPATH` names this directory. |
 | `image/routers/` | The build copies `quota_router.py` and `decision_router.py` to `/opt/litellm-gateway/image/routers/`. |
 
@@ -759,7 +761,7 @@ The Responses-to-Chat bridge can drop function arguments that arrive only in com
 `responses_tool_finish.py` emits those arguments once, from `response.function_call_arguments.done` or `response.output_item.done`.
 It keeps the call id, function name and sequential chat tool index. Calls that already delivered arguments stay unchanged.
 State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged. Completion events never end the stream early.
-Tests cover the hook with LiteLLM 1.101.0 and 1.103.0. Remove it when the pinned upstream passes the regression tests without it.
+Tests cover the hook with LiteLLM 1.101.0 and 1.106.2. Remove it when the pinned upstream passes the regression tests without it.
 `tests/test_responses_tool_finish.py` checks synthetic event sequences. [tests/README.md](tests/README.md) gives the pinned-image test commands.
 Not verified: live parallel tool calls with this argument recovery hook.
 
@@ -827,6 +829,7 @@ For those tests, the test cases supply the description. The table also includes 
 
 | File | Function |
 | --- | --- |
+| `scripts/build-architecture-html.py` | Builds the interactive architecture page from the graph source; refuses an overlay build outside `.local/`. |
 | `scripts/build.sh` | Builds the gateway image with Buildx bake; runs the smoke check before `gateway` and `release`. |
 | `scripts/check-prereqs.sh` | Checks the host tools before installation or a pipeline run; refuses a missing hard requirement. |
 | `scripts/create-env.py` | Creates `.env` with random secrets and mode 0600; refuses to replace an existing file. |
@@ -858,6 +861,7 @@ For those tests, the test cases supply the description. The table also includes 
 | `scripts/public-allow.tsv` | Lists path-bound, hashed line exceptions to the public check. |
 | `tests/README.md` | Gives the test commands, requirements and limits. |
 | `tests/conftest.py` | Adds the router import path and refuses hook tests without the startup hook. |
+| `tests/test_architecture_html.py` | Checks the architecture page builder, the committed page and the host-value rules on the page. |
 | `tests/test_chatgpt_auth_file.py` | Tests the account-file hook offline with synthetic tokens and fake authentication endpoints. |
 | `tests/test_chatgpt_session_id.py` | Tests stable session ids with a local fake ChatGPT backend and no real account. |
 | `tests/test_check_prereqs.sh` | Tests prerequisite checks offline with fake tools on `PATH`. |
@@ -934,7 +938,7 @@ Build inputs (`scripts/build.sh`, `docker-bake.hcl` and `Dockerfile`):
 | --- | --- | --- |
 | `REGISTRY` | Empty | Adds the registry prefix to the image name. |
 | `IMAGE_NAME` | `litellm-gateway` | Sets the image name. |
-| `LITELLM_VERSION` | `1.103.0` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
+| `LITELLM_VERSION` | `1.106.2` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
 | `PORTABLE_VERSION` | Script: Git release description; direct bake: `0` | Sets the portable part of the image version. |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | Sets the image tag. |
 | `BASE_IMAGE` | The pin in `docker-bake.hcl`, equal to `Dockerfile` | Selects the LiteLLM base image; a mirror must keep its digest. |
@@ -992,6 +996,7 @@ Promotion and prerequisites:
 | [docs/copilot.md](docs/copilot.md) | The Copilot service, login, token directory and gateway routes. |
 | [docs/decision-routes.md](docs/decision-routes.md) | Pass-through routes to decision services. |
 | [docs/decision-router.md](docs/decision-router.md) | The prototype router for the virtual model `auto`. |
+| [docs/architecture.html](docs/architecture.html) | The interactive architecture graph, built from `docs/diagrams/architecture-graph.json`. |
 | [docs/adr/0001-public-history-new-root.md](docs/adr/0001-public-history-new-root.md) | The decision to start public history from a new root. |
 | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) | The development issue tracker and the rules for agent access. |
 | [docs/examples/Caddyfile.fragment](docs/examples/Caddyfile.fragment) | An example Caddy reverse-proxy route. |

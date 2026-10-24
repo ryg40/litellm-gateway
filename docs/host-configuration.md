@@ -147,6 +147,19 @@ Its routes in the gateway are in `config/gateway.copilot.example.yaml`.
 Pass-through routes and the decision router use services that are not part of this stack.
 `docs/decision-routes.md` and `docs/decision-router.md` have generic examples to add to the host files.
 
+## Private edition of the architecture page
+
+`docs/architecture.html` shows generic names only. A host can build a private edition with its own values from an overlay file.
+The overlay replaces labels, summaries and facts by node id, and it adds host-only nodes and edges.
+Keep the overlay in `.local/diagrams/overlay.json`. Git ignores it and the page that it makes.
+
+```sh
+python3 scripts/build-architecture-html.py --overlay .local/diagrams/overlay.json --out .local/diagrams/architecture-local.html
+```
+
+With `--overlay`, the builder writes only to a path under `.local/`. It refuses a page that contains the value of a secret key of `.env`.
+Put no secret in the overlay: a value of a host, for example a port or a container name, is enough.
+
 ## Move a tracked gateway file to `.local/`
 
 If you keep the gateway configuration in `config/gateway.yaml`, move it to `.local/` before the first deploy:

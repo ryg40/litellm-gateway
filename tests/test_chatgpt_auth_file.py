@@ -170,7 +170,7 @@ class HookCase(unittest.TestCase):
             self.addCleanup(p.stop)
 
     def refresh(self, fake):
-        p = patch.object(upstream_auth, "_get_httpx_client", return_value=fake)
+        p = patch.object(upstream_auth, "get_httpx_client" if hasattr(upstream_auth, "get_httpx_client") else "_get_httpx_client", return_value=fake)
         p.start()
         self.addCleanup(p.stop)
 
@@ -764,7 +764,7 @@ class SecretTests(HookCase):
             with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
                 self.refresh(FakeRefresh([good]))
                 ChatGPTResponsesAPIConfig().validate_environment({}, "m", {"chatgpt_auth_file": "good/auth.json"})
-                with patch.object(upstream_auth, "_get_httpx_client", return_value=FakeRefresh([bad], status=400)):
+                with patch.object(upstream_auth, "get_httpx_client" if hasattr(upstream_auth, "get_httpx_client") else "_get_httpx_client", return_value=FakeRefresh([bad], status=400)):
                     for name in ("bad", "broken", "missing"):
                         try:
                             ChatGPTResponsesAPIConfig().validate_environment(
@@ -878,7 +878,7 @@ print(json.dumps({
     "responses_env": origin(ChatGPTResponsesAPIConfig.validate_environment),
     "body_safe": origin(auth_utils.is_request_body_safe),
     "key_in_lists": ["chatgpt_auth_file" in all_litellm_params, "chatgpt_auth_file" in params.OPTIONAL_KWARGS_KEYS,
-                     "chatgpt_auth_file" in main.FORWARDED_KWARGS_KEYS],
+                     "chatgpt_auth_file" in (main.FORWARDED_KWARGS_KEYS if hasattr(main, "FORWARDED_KWARGS_KEYS") else main.AWS_CREDENTIAL_KWARGS_KEYS)],
     "marker": hasattr(ChatGPTResponsesAPIConfig, "_gateway_auth_file"),
 }))
 """

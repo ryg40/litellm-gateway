@@ -159,6 +159,7 @@ Old personal identities or old wording can stop that check. Fix the publication 
 | `portable-v0.3.0` | `a61e506d` | 2026-10-06 | first public snapshot, new root |
 | `portable-v0.4.0` | `cc0ccf07` | 2026-10-07 | Mac runtime on Podman, Node 24 as a hard requirement, `scripts/check-prereqs.sh` |
 | `portable-v0.4.1` | `4d1aefc2` | 2026-10-07 | `EXPLAINER.md` with OKF v0.2 frontmatter, terms, portable differences and a reference section |
+| `portable-v0.5.0` | `dff7fa0f` | 2026-10-12 | the automatic Codex routes prefer `codex3`, then `codex2`, then `codex1`; native routing and cache continuity tests |
 
 Tags before the public root are private only and never leave the private server.
 

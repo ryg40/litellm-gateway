@@ -107,6 +107,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 | [docs/copilot.md](docs/copilot.md) | GitHub Copilot models: the service `copilot`, login, token directory, `copilot/*` routes |
 | [docs/decision-routes.md](docs/decision-routes.md) | Pass-through routes to decision services |
 | [docs/decision-router.md](docs/decision-router.md) | The prototype router for the virtual model `auto` |
+| [docs/architecture.html](docs/architecture.html) | Interactive architecture graph: six views, search, guided tours and a path finder |
 | [tests/README.md](tests/README.md) | Test commands |
 
 Warning: `.env`, `secrets/` and `state/` hold credentials and tokens. Do not add them to Git. Back them up separately ([docs/operations.md](docs/operations.md)).

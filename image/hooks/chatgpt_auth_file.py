@@ -424,12 +424,16 @@ def install():
     params_module.OPTIONAL_KWARGS_KEYS = params_module.OPTIONAL_KWARGS_KEYS | {KEY}
     params_module._OPTIONAL_KWARGS_KEYS = params_module.OPTIONAL_KWARGS_KEYS
     main_module = import_module("litellm.main")
-    main_module.FORWARDED_KWARGS_KEYS = main_module.FORWARDED_KWARGS_KEYS | {KEY}
+    if hasattr(main_module, "FORWARDED_KWARGS_KEYS"):
+        main_module.FORWARDED_KWARGS_KEYS = main_module.FORWARDED_KWARGS_KEYS | {KEY}
+    else:
+        # 1.106.2 expands this set directly at the completion() call site.
+        main_module.AWS_CREDENTIAL_KWARGS_KEYS = main_module.AWS_CREDENTIAL_KWARGS_KEYS | {KEY}
 
     # Client requests never set the key. Not even with an admin opt-in.
     original_safe = auth_utils.is_request_body_safe
 
-    def is_request_body_safe(request_body, general_settings, llm_router, model):
+    def is_request_body_safe(request_body, general_settings, llm_router, model, **kwargs):
         try:
             found = client_sets_key(request_body)
         except (TooDeep, RecursionError):
@@ -438,7 +442,7 @@ def install():
         if found:
             raise HTTPException(status_code=400, detail={
                 "error": f"Rejected Request: {KEY} is not allowed in the request. Only the proxy configuration sets it."})
-        return original_safe(request_body, general_settings, llm_router, model)
+        return original_safe(request_body, general_settings, llm_router, model, **kwargs)
 
     auth_utils.is_request_body_safe = is_request_body_safe
 

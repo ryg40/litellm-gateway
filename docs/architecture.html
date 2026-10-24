@@ -1,0 +1,7116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>LiteLLM gateway architecture (public edition)</title>
+<style>
+:root {
+  --bg: #0d1117; --panel: #141a23; --panel2: #1b2330; --line: #2b3545; --text: #e6edf3; --muted: #a3adbb;
+  --node: #161d29; --focus: #f5c542; --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+button, input, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
+button { cursor: pointer; padding: 4px 10px; }
+button:hover { border-color: #4b5a70; }
+button:focus-visible, input:focus-visible, select:focus-visible, .node:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a { color: #8cb4ff; }
+#app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+#edition { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+#banner { background: #f5c542; color: #1a1300; font-weight: 700; padding: 4px 12px; border-radius: 6px; text-transform: uppercase; letter-spacing: .04em; font-size: 12px; }
+#help { color: var(--muted); font-size: 12px; margin-left: auto; }
+#main { display: grid; grid-template-columns: 290px 1fr 360px; min-height: 0; }
+aside { background: var(--panel); overflow-y: auto; min-height: 0; }
+#sidebar { border-right: 1px solid var(--line); padding: 8px 14px 24px; }
+#detail { border-left: 1px solid var(--line); padding: 14px 16px 24px; }
+aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; font-weight: 650; }
+#views button { display: block; width: 100%; text-align: left; margin: 0 0 6px; padding: 7px 10px; background: transparent; }
+#views button[aria-current="true"] { background: #22304a; border-color: #7aa2f7; }
+#views .count { color: var(--muted); font-size: 12px; float: right; }
+#search { width: 100%; padding: 6px 9px; }
+#results { list-style: none; margin: 8px 0 0; padding: 0; max-height: 230px; overflow-y: auto; }
+#results button { width: 100%; text-align: left; margin-bottom: 4px; background: transparent; }
+#results .where { display: block; color: var(--muted); font-size: 12px; }
+.filters label { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; cursor: pointer; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+.legend-row svg { flex: none; }
+#path-form select { width: 100%; margin-bottom: 6px; padding: 5px; }
+#path-form .row { display: flex; gap: 6px; }
+#path-status { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#path-steps { margin: 0; padding-left: 20px; font-size: 13px; }
+#path-steps button { background: none; border: none; padding: 0; color: #8cb4ff; text-decoration: underline; }
+#canvas-wrap { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto 1fr auto; }
+#view-head { padding: 10px 16px 6px; border-bottom: 1px solid var(--line); }
+#view-head h2 { margin: 0; font-size: 16px; }
+#view-head p { margin: 2px 0 0; color: var(--muted); }
+#canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+#canvas.panning { cursor: grabbing; }
+#zoom { position: absolute; right: 14px; top: 70px; display: flex; flex-direction: column; gap: 6px; }
+#zoom button { width: 36px; padding: 4px 0; }
+#tooltip { position: fixed; pointer-events: none; background: #0b0f15; border: 1px solid #4b5a70; padding: 5px 9px; border-radius: 6px; font-size: 12px; max-width: 360px; z-index: 5; }
+#tooltip .t { font-family: var(--mono); font-weight: 650; }
+#tooltip .s { color: var(--muted); }
+#tourbar { border-top: 1px solid var(--line); background: var(--panel); padding: 8px 14px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; }
+#tourbar .controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#tour-step { color: var(--muted); font-size: 13px; min-width: 90px; }
+#tour-text { margin: 0; min-height: 1.45em; }
+.frame rect { fill: rgba(122, 162, 247, .045); stroke: #3a4a64; stroke-dasharray: 2 4; }
+.frame text { fill: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: .03em; }
+.edge { fill: none; stroke-width: 1.6; opacity: .78; transition: opacity .15s; }
+.edge.option { stroke-dasharray: 6 5; }
+.edge.focus { stroke-width: 2.6; opacity: 1; }
+.edge.dim { opacity: .09; }
+.edge-hit { fill: none; stroke: transparent; stroke-width: 12; }
+.elabel { font-size: 11px; fill: var(--text); paint-order: stroke; stroke: #0d1117; stroke-width: 4px; stroke-linejoin: round; display: none; pointer-events: none; }
+.elabel.show { display: block; }
+.node { cursor: pointer; transition: opacity .15s; }
+.node .box { fill: var(--node); stroke-width: 1.6; }
+.node.option .box { stroke-dasharray: 6 4; }
+.node .label { font: 600 12px var(--mono); fill: var(--text); }
+.node:hover .box { fill: #1d2635; }
+.node.focus .box { stroke-width: 2.4; }
+.node.sel .box { stroke-width: 3.2; fill: #1f2a3b; }
+.node.match .box { stroke: var(--focus) !important; stroke-width: 2.6; }
+.node.tour .box { fill: #22304a; stroke-width: 3; }
+.node.dim { opacity: .2; }
+.hidden { display: none; }
+#detail .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: var(--panel2); }
+button.chip { cursor: pointer; }
+#detail h3 { font: 650 16px var(--mono); margin: 4px 0; word-break: break-word; }
+#detail p.summary { margin: 8px 0 12px; }
+#detail table { border-collapse: collapse; width: 100%; font-size: 13px; }
+#detail td { border-top: 1px solid var(--line); padding: 4px 6px 4px 0; vertical-align: top; word-break: break-word; }
+#detail td:first-child { color: var(--muted); width: 38%; }
+#detail ul { margin: 4px 0; padding-left: 18px; font-size: 13px; }
+#detail li { margin: 3px 0; word-break: break-word; }
+#detail li button { background: none; border: none; padding: 0; color: #8cb4ff; text-decoration: underline; font-family: var(--mono); font-size: 13px; text-align: left; }
+#detail .note { color: var(--muted); font-size: 12px; }
+.kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+@media (max-width: 1100px) { #main { grid-template-columns: 250px 1fr; } #detail { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; } }
+@media (prefers-reduced-motion: reduce) { .edge, .node { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1 id="title"></h1>
+  <span id="edition"></span>
+  <span id="banner" role="note" hidden></span>
+  <span id="help">Drag to pan. Use the wheel to zoom. Click a node for details. <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> step through a tour. <span class="kbd">Esc</span> clears the selection.</span>
+</header>
+<div id="main">
+<aside id="sidebar" aria-label="Views, search, filters and legend">
+  <h2>Views</h2>
+  <div id="views"></div>
+  <h2><label for="search">Search</label></h2>
+  <input id="search" type="search" placeholder="Label or summary" autocomplete="off">
+  <ul id="results" aria-label="Search results"></ul>
+  <h2>Path finder</h2>
+  <div id="path-form">
+    <label class="note" for="path-from">Start node</label>
+    <select id="path-from"></select>
+    <label class="note" for="path-to">End node</label>
+    <select id="path-to"></select>
+    <div class="row"><button id="path-go" type="button">Find path</button><button id="path-clear" type="button">Clear</button></div>
+    <p id="path-status" aria-live="polite"></p>
+    <ol id="path-steps"></ol>
+  </div>
+  <h2>Filter by group</h2>
+  <div id="filter-groups" class="filters"></div>
+  <h2>Filter by part</h2>
+  <div id="filter-parts" class="filters"></div>
+  <h2>Legend</h2>
+  <div id="legend"></div>
+  <div class="filters"><label><input type="checkbox" id="all-labels"> Show all edge labels</label></div>
+</aside>
+<section id="canvas-wrap" aria-label="Graph">
+  <div id="view-head"><h2 id="view-name"></h2><p id="view-text"></p></div>
+  <svg id="canvas" role="img" aria-labelledby="view-name">
+    <defs id="defs"></defs>
+    <g id="viewport"><g id="frames"></g><g id="edges"></g><g id="nodes"></g><g id="elabels"></g></g>
+  </svg>
+  <div id="zoom"><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button><button id="zoom-fit" type="button" aria-label="Fit the view">Fit</button></div>
+  <div id="tourbar">
+    <div class="controls">
+      <label class="note" for="tour-select">Tour</label>
+      <select id="tour-select"></select>
+      <button id="tour-start" type="button">Start</button>
+      <button id="tour-prev" type="button" aria-label="Previous step">&larr; Previous</button>
+      <button id="tour-next" type="button" aria-label="Next step">Next &rarr;</button>
+      <button id="tour-end" type="button">End</button>
+      <span id="tour-step"></span>
+    </div>
+    <p id="tour-text" aria-live="polite"></p>
+  </div>
+</section>
+<aside id="detail" aria-label="Details" aria-live="polite"></aside>
+</div>
+</div>
+<div id="tooltip" hidden></div>
+<script type="application/json" id="graph-data">{
+ "title": "LiteLLM gateway architecture",
+ "edition": {
+  "name": "public edition",
+  "banner": ""
+ },
+ "groups": [
+  {
+   "id": "client",
+   "label": "Client and entry",
+   "color": "#7aa2f7"
+  },
+  {
+   "id": "route",
+   "label": "Gateway route",
+   "color": "#bb9af7"
+  },
+  {
+   "id": "service",
+   "label": "Compose service",
+   "color": "#2ac3de"
+  },
+  {
+   "id": "code",
+   "label": "Hook or router code",
+   "color": "#9ece6a"
+  },
+  {
+   "id": "config",
+   "label": "Configuration",
+   "color": "#ff9e64"
+  },
+  {
+   "id": "storage",
+   "label": "Storage and state",
+   "color": "#e0af68"
+  },
+  {
+   "id": "provider",
+   "label": "Provider or external host",
+   "color": "#f7768e"
+  },
+  {
+   "id": "build",
+   "label": "Build and image",
+   "color": "#73daca"
+  },
+  {
+   "id": "git",
+   "label": "Branch, tag or remote",
+   "color": "#c0caf5"
+  },
+  {
+   "id": "check",
+   "label": "Scan, check or test",
+   "color": "#ff79c6"
+  },
+  {
+   "id": "network",
+   "label": "Network",
+   "color": "#a0a8cd"
+  },
+  {
+   "id": "rule",
+   "label": "Decision rule",
+   "color": "#f1fa8c"
+  },
+  {
+   "id": "tool",
+   "label": "Script or tool",
+   "color": "#e8e8e8"
+  }
+ ],
+ "edge_kinds": [
+  {
+   "id": "request",
+   "label": "Request path",
+   "color": "#7aa2f7"
+  },
+  {
+   "id": "fallback",
+   "label": "Order or fallback",
+   "color": "#bb9af7"
+  },
+  {
+   "id": "config",
+   "label": "Configures or mounts",
+   "color": "#ff9e64"
+  },
+  {
+   "id": "state",
+   "label": "Reads or writes state",
+   "color": "#e0af68"
+  },
+  {
+   "id": "code",
+   "label": "Loads or uses code",
+   "color": "#9ece6a"
+  },
+  {
+   "id": "control",
+   "label": "Starts or runs",
+   "color": "#2ac3de"
+  },
+  {
+   "id": "network",
+   "label": "Joins a network",
+   "color": "#a0a8cd"
+  },
+  {
+   "id": "build",
+   "label": "Builds or produces",
+   "color": "#73daca"
+  },
+  {
+   "id": "git",
+   "label": "Branch flow or push",
+   "color": "#c0caf5"
+  },
+  {
+   "id": "check",
+   "label": "Checks or scans",
+   "color": "#ff79c6"
+  },
+  {
+   "id": "rule",
+   "label": "Next rule or result",
+   "color": "#f1fa8c"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "client",
+   "label": "client",
+   "lines": [
+    "client"
+   ],
+   "group": "client",
+   "part": "core",
+   "summary": "A client sends an OpenAI-compatible request to the gateway. The request carries a LiteLLM key. The gateway refuses a request without a valid key.",
+   "facts": [
+    [
+     "Example paths",
+     "/v1/chat/completions, /v1/models"
+    ],
+    [
+     "Key",
+     "the master key or a virtual key"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex",
+    "copilot",
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "published-port",
+   "label": "127.0.0.1:4321",
+   "lines": [
+    "127.0.0.1:4321"
+   ],
+   "group": "client",
+   "part": "core",
+   "summary": "Compose publishes port 4000 of gateway on this address. It is the only published port of the stack. GATEWAY_PORT in .env changes the address.",
+   "facts": [
+    [
+     "Variable",
+     "GATEWAY_PORT"
+    ],
+    [
+     "Default",
+     "127.0.0.1:4321"
+    ],
+    [
+     "Container port",
+     "4000"
+    ]
+   ],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "reverse-proxy",
+   "label": "reverse proxy",
+   "lines": [
+    "reverse proxy"
+   ],
+   "group": "client",
+   "part": "option",
+   "summary": "A public address, for example https://<domain>, needs a reverse proxy. The proxy joins the external network proxy and forwards to litellm:4000. docs/examples/Caddyfile.fragment is an example route for Caddy.",
+   "facts": [
+    [
+     "Network",
+     "proxy (external)"
+    ],
+    [
+     "Target",
+     "litellm:4000"
+    ],
+    [
+     "Defined in",
+     ".local/compose.host.yaml"
+    ]
+   ],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "docs/examples/Caddyfile.fragment",
+     "href": "../../../../docs/examples/Caddyfile.fragment"
+    }
+   ]
+  },
+  {
+   "id": "env-file",
+   "label": ".env",
+   "lines": [
+    ".env"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The secrets and the host settings of one checkout, with mode 0600. Compose reads it for each ${VAR} and gives each key to gateway. Git ignores it.",
+   "facts": [
+    [
+     "Made by",
+     "scripts/create-env.py"
+    ],
+    [
+     "Host settings",
+     "GATEWAY_CONFIG, COPILOT_CONFIG, GATEWAY_PORT, GATEWAY_IMAGE, COMPOSE_FILE"
+    ]
+   ],
+   "views": [
+    "request",
+    "copilot",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": ".env.example",
+     "href": "../../../../.env.example"
+    }
+   ]
+  },
+  {
+   "id": "gateway-example",
+   "label": "config/gateway.example.yaml",
+   "lines": [
+    "config/gateway.",
+    "example.yaml"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The tracked default configuration of gateway. It has two routes: openrouter/* and local/example-model. Compose mounts it when GATEWAY_CONFIG is not set.",
+   "facts": [
+    [
+     "Mount",
+     "/config/config.yaml, read-only"
+    ]
+   ],
+   "views": [
+    "request",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.example.yaml",
+     "href": "../../../../config/gateway.example.yaml"
+    },
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "host-gateway-file",
+   "label": ".local/config/gateway.yaml",
+   "lines": [
+    ".local/config/gateway.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The host gateway file with the routes of one host. It uses JSON syntax, so the scripts can read and write it. GATEWAY_CONFIG in .env names it. A change needs a recreate of gateway, not a restart.",
+   "facts": [
+    [
+     "Variable",
+     "GATEWAY_CONFIG=./.local/config/gateway.yaml"
+    ],
+    [
+     "Writers",
+     "scripts/enable-codex.py, scripts/enable-anthropic.py, scripts/sync-local-models.py"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex",
+    "copilot",
+    "decision",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "image-local",
+   "label": "litellm-gateway:local",
+   "lines": [
+    "litellm-gateway:local"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The gateway image: the LiteLLM 1.103.0 base image plus the hooks and routers of this repo. docker compose up -d --build builds it from the target gateway. All services except database run it.",
+   "facts": [
+    [
+     "Variable",
+     "GATEWAY_IMAGE (unset: litellm-gateway:local)"
+    ],
+    [
+     "Hooks",
+     "/opt/litellm-gateway/image/hooks"
+    ],
+    [
+     "Routers",
+     "/opt/litellm-gateway/image/routers"
+    ]
+   ],
+   "views": [
+    "request",
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    }
+   ]
+  },
+  {
+   "id": "gateway",
+   "label": "gateway",
+   "lines": [
+    "gateway"
+   ],
+   "group": "service",
+   "part": "core",
+   "summary": "The LiteLLM proxy that clients call. It holds the routes of the gateway configuration. It runs as the user 1000:1000 with no capability. It starts after database is healthy.",
+   "facts": [
+    [
+     "Listens on",
+     "4000"
+    ],
+    [
+     "Config",
+     "/config/config.yaml, read-only"
+    ],
+    [
+     "Health check",
+     "/health/liveliness every 30 s"
+    ],
+    [
+     "Container",
+     "litellm-gateway-1, or litellm with the host override file"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex",
+    "copilot",
+    "decision",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "database",
+   "label": "database",
+   "lines": [
+    "database"
+   ],
+   "group": "service",
+   "part": "core",
+   "summary": "Postgres 16, pinned by index digest. It holds the virtual keys, the spend data and the settings from the UI. It listens on 5432 and publishes no port.",
+   "facts": [
+    [
+     "Container",
+     "litellm-database-1"
+    ],
+    [
+     "Database and user",
+     "litellm"
+    ],
+    [
+     "Health check",
+     "pg_isready every 5 s"
+    ]
+   ],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "postgres-volume",
+   "label": "litellm_postgres-data",
+   "lines": [
+    "litellm_postgres-data"
+   ],
+   "group": "storage",
+   "part": "core",
+   "summary": "The named volume of the database at /var/lib/postgresql/data. docker compose down keeps it, and docker compose down -v deletes it. Another Compose project name makes a new, empty volume.",
+   "facts": [],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "network-default",
+   "label": "litellm_default",
+   "lines": [
+    "litellm_default"
+   ],
+   "group": "network",
+   "part": "core",
+   "summary": "The project network of the Compose project litellm. The services of the stack join this network. They reach each other by service name, for example http://codex1:4000.",
+   "facts": [],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "route-openrouter",
+   "label": "openrouter/*",
+   "lines": [
+    "openrouter/*"
+   ],
+   "group": "route",
+   "part": "core",
+   "summary": "A wildcard route to OpenRouter. It reads OPENROUTER_API_KEY from .env. A route works only with its key.",
+   "facts": [],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.example.yaml",
+     "href": "../../../../config/gateway.example.yaml"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "route-local",
+   "label": "local/example-model",
+   "lines": [
+    "local/example-model"
+   ],
+   "group": "route",
+   "part": "core",
+   "summary": "A route to a local OpenAI-compatible server. It reads its address from LOCAL_API_BASE and its key from LOCAL_API_KEY. scripts/sync-local-models.py writes more local routes into the host gateway file.",
+   "facts": [],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.example.yaml",
+     "href": "../../../../config/gateway.example.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "openrouter",
+   "label": "OpenRouter",
+   "lines": [
+    "OpenRouter"
+   ],
+   "group": "provider",
+   "part": "core",
+   "summary": "A cloud provider that the default configuration names. The gateway calls it over HTTPS. A request uses the allowance of the provider key.",
+   "facts": [],
+   "views": [
+    "request"
+   ],
+   "sources": [
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "local-endpoint",
+   "label": "local endpoint",
+   "lines": [
+    "local endpoint"
+   ],
+   "group": "provider",
+   "part": "core",
+   "summary": "An OpenAI-compatible model server of the host, for example llama-swap or vLLM. The example address is http://local-llm.example:8080/v1. The host and the container gateway must both reach the address.",
+   "facts": [
+    [
+     "Variables",
+     "LOCAL_API_BASE, LOCAL_ENDPOINTS"
+    ]
+   ],
+   "views": [
+    "request",
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": ".env.example",
+     "href": "../../../../.env.example"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "codex1",
+   "label": "codex1",
+   "lines": [
+    "codex1"
+   ],
+   "group": "service",
+   "part": "option",
+   "summary": "The LiteLLM proxy of ChatGPT account 1. It keeps its tokens in state/codex1/ and publishes no port. It is the last account of the default order.",
+   "facts": [
+    [
+     "Container",
+     "litellm-codex1-1"
+    ],
+    [
+     "Config",
+     "config/codex.yaml"
+    ],
+    [
+     "Token mount",
+     "./state/codex1:/tokens"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "codex2",
+   "label": "codex2",
+   "lines": [
+    "codex2"
+   ],
+   "group": "service",
+   "part": "option",
+   "summary": "The LiteLLM proxy of ChatGPT account 2. It keeps its tokens in state/codex2/ and publishes no port. It is the second account of the default order, and the first with two accounts.",
+   "facts": [
+    [
+     "Container",
+     "litellm-codex2-1"
+    ],
+    [
+     "Config",
+     "config/codex.yaml"
+    ],
+    [
+     "Token mount",
+     "./state/codex2:/tokens"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "codex3",
+   "label": "codex3",
+   "lines": [
+    "codex3"
+   ],
+   "group": "service",
+   "part": "option",
+   "summary": "The LiteLLM proxy of ChatGPT account 3. It is the first account of the default order. Without a login it stays unhealthy and prints a device code again and again.",
+   "facts": [
+    [
+     "Container",
+     "litellm-codex3-1"
+    ],
+    [
+     "Config",
+     "config/codex.yaml"
+    ],
+    [
+     "Token mount",
+     "./state/codex3:/tokens"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "codex-router",
+   "label": "codex-router",
+   "lines": [
+    "codex-router"
+   ],
+   "group": "service",
+   "part": "option",
+   "summary": "An optional quota-aware router for the Codex accounts. It uses the first account with a login that is not blocked. An HTTP 429 moves the request to the next account. The tracked routes do not use it.",
+   "facts": [
+    [
+     "Container",
+     "litellm-codex-router-1"
+    ],
+    [
+     "Order",
+     "CODEX_ACCOUNT_ORDER=codex3,codex2,codex1"
+    ],
+    [
+     "Upstream deadline",
+     "CODEX_REQUEST_TIMEOUT_SECONDS=555"
+    ],
+    [
+     "Status",
+     "/routing/status"
+    ]
+   ],
+   "views": [
+    "request",
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "copilot",
+   "label": "copilot",
+   "lines": [
+    "copilot"
+   ],
+   "group": "service",
+   "part": "option",
+   "summary": "A LiteLLM proxy with the github_copilot/ provider for one GitHub Copilot account. It runs apart from the gateway, so a stalled key refresh stops only this service. It publishes no port and never starts a device login.",
+   "facts": [
+    [
+     "Container",
+     "litellm-copilot-1"
+    ],
+    [
+     "Token directory",
+     "/state/copilot"
+    ],
+    [
+     "Request timeout",
+     "540 s in config/copilot.yaml"
+    ]
+   ],
+   "views": [
+    "request",
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "gateway-codex-example",
+   "label": "config/gateway.codex.example.yaml",
+   "lines": [
+    "config/gateway.",
+    "codex.example.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The tracked template of the Codex routes. It has codex1/, codex2/, codex3/ and codex-auto/ entries for each model. Its fallbacks send codex-auto to codex2, then codex1.",
+   "facts": [
+    [
+     "Models",
+     "luna, sol, astra, gpt-6-luna, gpt-6-sol, gpt-6.1-sol, gpt-6-astra"
+    ],
+    [
+     "max_fallbacks",
+     "2"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.codex.example.yaml",
+     "href": "../../../../config/gateway.codex.example.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "enable-codex",
+   "label": "scripts/enable-codex.py",
+   "lines": [
+    "scripts/enable-codex.py"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script adds the Codex routes to the host gateway file. It stops when a token file of an account is missing. With two logins it writes no codex3 route.",
+   "facts": [
+    [
+     "Option",
+     "--accounts 2 or --accounts 3"
+    ]
+   ],
+   "views": [
+    "codex",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/enable-codex.py",
+     "href": "../../../../scripts/enable-codex.py"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "test-codex-routing",
+   "label": "tests/test_codex_routing.py",
+   "lines": [
+    "tests/test_",
+    "codex_routing.py"
+   ],
+   "group": "check",
+   "part": "option",
+   "summary": "The test checks the native Codex routes with synthetic logins. It expects codex3, then codex2, then codex1 with three accounts. With two accounts it expects codex2, then codex1, and no codex3 text.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "tests/test_codex_routing.py",
+     "href": "../../../../tests/test_codex_routing.py"
+    }
+   ]
+  },
+  {
+   "id": "codex-accounts-prototype",
+   "label": "chatgpt_auth_file.py",
+   "lines": [
+    "chatgpt_auth_file.py"
+   ],
+   "group": "code",
+   "part": "option",
+   "summary": "A prototype hook for more than one ChatGPT account in one process. It is off by default. The supported design runs one process for each account.",
+   "facts": [
+    [
+     "Switch",
+     "CHATGPT_AUTH_FILE_HOOK"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "docs/codex-accounts.md",
+     "href": "../../../../docs/codex-accounts.md"
+    },
+    {
+     "text": "image/hooks/chatgpt_auth_file.py",
+     "href": "../../../../image/hooks/chatgpt_auth_file.py"
+    }
+   ]
+  },
+  {
+   "id": "route-codex-auto",
+   "label": "codex-auto/<model>",
+   "lines": [
+    "codex-auto/<model>"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "The automatic Codex route. The tracked routes use the native fallback of LiteLLM: codex3, then codex2, then codex1. A host can point these entries at codex-router instead.",
+   "facts": [
+    [
+     "Three accounts",
+     "codex3, then codex2, then codex1"
+    ],
+    [
+     "Two accounts",
+     "codex2, then codex1"
+    ],
+    [
+     "Cooldown",
+     "cooldown_time 60"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "config/gateway.codex.example.yaml",
+     "href": "../../../../config/gateway.codex.example.yaml"
+    },
+    {
+     "text": "tests/test_codex_routing.py",
+     "href": "../../../../tests/test_codex_routing.py"
+    }
+   ]
+  },
+  {
+   "id": "route-codex-explicit",
+   "label": "codexN/<model>",
+   "lines": [
+    "codexN/<model>"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "The explicit routes codex1/*, codex2/* and codex3/* go to one account each. Use them for previous_response_id and conversation requests. Each route goes to http://codexN:4000/v1.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "config/gateway.codex.example.yaml",
+     "href": "../../../../config/gateway.codex.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "account-order",
+   "label": "CODEX_ACCOUNT_ORDER",
+   "lines": [
+    "CODEX_ACCOUNT_ORDER"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The preference order of codex-router. The default is codex3,codex2,codex1. The last account is the final fallback and gets no usage check.",
+   "facts": [
+    [
+     "Default",
+     "codex3,codex2,codex1"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "quota-router-code",
+   "label": "quota_router.py",
+   "lines": [
+    "quota_router.py"
+   ],
+   "group": "code",
+   "part": "option",
+   "summary": "The code of codex-router in the image. It runs as quota_router:app under uvicorn. It never refreshes a token.",
+   "facts": [
+    [
+     "Path",
+     "/opt/litellm-gateway/image/routers/quota_router.py"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "image/routers/quota_router.py",
+     "href": "../../../../image/routers/quota_router.py"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "session-id-hook",
+   "label": "chatgpt_session_id.py",
+   "lines": [
+    "chatgpt_session_id.py"
+   ],
+   "group": "code",
+   "part": "option",
+   "summary": "The hook gives each request for a chatgpt deployment a stable session id. ChatGPT Codex selects a prompt-cache server by this id. codex-router derives the id with the same function.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "image/hooks/chatgpt_session_id.py",
+     "href": "../../../../image/hooks/chatgpt_session_id.py"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "test-quota-router",
+   "label": "tests/test_quota_router.py",
+   "lines": [
+    "tests/test_quota_router.py"
+   ],
+   "group": "check",
+   "part": "option",
+   "summary": "The test checks the router with simulated responses. It covers the order, quota exhaustion, reset and the no-login skip. It also covers the 429 cascade through three accounts.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "tests/test_quota_router.py",
+     "href": "../../../../tests/test_quota_router.py"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "codex-secrets",
+   "label": "secrets/codex.env",
+   "lines": [
+    "secrets/codex.env"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The key file of the Codex services, with mode 0600. It holds CODEX_MASTER_KEY, the same value as in .env. Git ignores secrets/.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "codex-config",
+   "label": "config/codex.yaml",
+   "lines": [
+    "config/codex.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The configuration of codex1, codex2 and codex3. It declares the capabilities of the Codex models. Compose mounts it read-only.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "config/codex.yaml",
+     "href": "../../../../config/codex.yaml"
+    },
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "state-codex",
+   "label": "state/codexN/auth.json",
+   "lines": [
+    "state/codexN/auth.json"
+   ],
+   "group": "storage",
+   "part": "option",
+   "summary": "The login tokens of each account, with mode 0600. Only the service codexN refreshes its own file. codex-router mounts state/codex2 and state/codex3 read-only.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "login-codex",
+   "label": "scripts/login-codex.sh",
+   "lines": [
+    "scripts/login-codex.sh"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script runs a device-code login in a one-off container of the service codexN. The token goes to state/codexN/. It never imports the refresh token of another client.",
+   "facts": [
+    [
+     "Usage",
+     "sh scripts/login-codex.sh 1"
+    ]
+   ],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "scripts/login-codex.sh",
+     "href": "../../../../scripts/login-codex.sh"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "reauth-codex",
+   "label": "scripts/reauth-codex.sh",
+   "lines": [
+    "scripts/reauth-codex.sh"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script makes a new login for one account service. It stops the service, backs up auth.json, runs the login and starts the service again. --check prints the state and changes nothing.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "scripts/reauth-codex.sh",
+     "href": "../../../../scripts/reauth-codex.sh"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "chatgpt",
+   "label": "chatgpt.com",
+   "lines": [
+    "chatgpt.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "ChatGPT Codex answers the requests of the account services. codex-router also asks its usage endpoint. The usage endpoint is not a stable public API.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "openai-auth",
+   "label": "auth.openai.com",
+   "lines": [
+    "auth.openai.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "The login host of the device-code flow. The login prints a URL and a code. You enter the code in a browser with the account of that service.",
+   "facts": [],
+   "views": [
+    "codex"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    }
+   ]
+  },
+  {
+   "id": "gateway-copilot-example",
+   "label": "config/gateway.copilot.example.yaml",
+   "lines": [
+    "config/gateway.",
+    "copilot.example.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The tracked example of the copilot/ routes. You copy its entries into the host gateway file by hand. No script writes these routes.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.copilot.example.yaml",
+     "href": "../../../../config/gateway.copilot.example.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "route-copilot",
+   "label": "copilot/<alias>",
+   "lines": [
+    "copilot/<alias>"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "The gateway routes for the Copilot models. Each route goes to http://copilot:4000 with COPILOT_MASTER_KEY. The timeout is 570 seconds.",
+   "facts": [
+    [
+     "Model form",
+     "litellm_proxy/<alias>"
+    ]
+   ],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "config/gateway.copilot.example.yaml",
+     "href": "../../../../config/gateway.copilot.example.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "copilot-config",
+   "label": "config/copilot.yaml",
+   "lines": [
+    "config/copilot.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The configuration of the service copilot, with placeholder model ids. A host keeps a copy in .local/config/copilot.yaml. COPILOT_CONFIG in .env names the copy.",
+   "facts": [
+    [
+     "Variable",
+     "COPILOT_CONFIG"
+    ],
+    [
+     "request_timeout",
+     "540"
+    ]
+   ],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "config/copilot.yaml",
+     "href": "../../../../config/copilot.yaml"
+    },
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "copilot-secrets",
+   "label": "secrets/copilot.env",
+   "lines": [
+    "secrets/copilot.env"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The key file of the service copilot, with mode 0600. It holds COPILOT_MASTER_KEY, the same value as in .env. Git ignores secrets/.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "device-guard",
+   "label": "GITHUB_COPILOT_DEVICE_CODE_URL",
+   "lines": [
+    "GITHUB_COPILOT_",
+    "DEVICE_CODE_URL"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "A dead local address in the environment of copilot. With it, a device flow fails at once and the service starts in its usual time. Do not remove it.",
+   "facts": [
+    [
+     "Value",
+     "http://127.0.0.1:9/device-flow-disabled"
+    ]
+   ],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "state-copilot",
+   "label": "state/copilot/",
+   "lines": [
+    "state/copilot/"
+   ],
+   "group": "storage",
+   "part": "option",
+   "summary": "The token directory, with owner 1000:1000 and mode 0700. access-token is the GitHub OAuth token. api-key.json is the short-lived Copilot key that the service renews.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    },
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    }
+   ]
+  },
+  {
+   "id": "login-copilot",
+   "label": "scripts/login-copilot.sh",
+   "lines": [
+    "scripts/login-copilot.sh"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script runs the device login in a one-off container with no project network. Each code is valid for one minute. The models subcommand lists the model ids of the account.",
+   "facts": [
+    [
+     "Usage",
+     "sh scripts/login-copilot.sh models --endpoints"
+    ]
+   ],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "scripts/login-copilot.sh",
+     "href": "../../../../scripts/login-copilot.sh"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "github-login",
+   "label": "github.com",
+   "lines": [
+    "github.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "The host of the device login. You open the URL and enter the newest code. Only the login container contacts it.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "github-api",
+   "label": "api.github.com",
+   "lines": [
+    "api.github.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "The host of the key exchange. The provider sends access-token and gets a new api-key.json. This happens about every 30 minutes.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "copilot-api",
+   "label": "api.githubcopilot.com",
+   "lines": [
+    "api.githubcopilot.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "The Copilot API for the models and the requests. The address can also come from endpoints.api of api-key.json. A model with policy=disabled gets HTTP 400.",
+   "facts": [],
+   "views": [
+    "copilot"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "host-override",
+   "label": ".local/compose.host.yaml",
+   "lines": [
+    ".local/compose.host.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The host override file. It adds a fixed container name and the external network proxy. COMPOSE_FILE lists it last, so its values win.",
+   "facts": [
+    [
+     "container_name",
+     "litellm"
+    ],
+    [
+     "Network",
+     "proxy, alias litellm"
+    ]
+   ],
+   "views": [
+    "decision",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "decision-routes-file",
+   "label": "decision-routes.yaml",
+   "lines": [
+    "decision-routes.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The route table, the thresholds and the question text of the router. DECISION_ROUTES names the file. config/decision-routes.example.yaml is the example with generic model names.",
+   "facts": [
+    [
+     "Variable",
+     "DECISION_ROUTES"
+    ],
+    [
+     "Host copy",
+     ".local/config/decision-routes.yaml"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "decision-switch",
+   "label": "DECISION_ROUTER_ENABLED",
+   "lines": [
+    "DECISION_ROUTER_ENABLED"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The switch of the decision call. Unset means on. With 0, false, off or no, a request for auto goes to default_model with no decision call.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "decision-hook",
+   "label": "decision_router.py",
+   "lines": [
+    "decision_router.py"
+   ],
+   "group": "code",
+   "part": "option",
+   "summary": "A LiteLLM pre-call hook for the virtual model auto. It is a prototype and off by default. It does not touch requests for another model.",
+   "facts": [
+    [
+     "Callback",
+     "decision_router.proxy_handler_instance"
+    ],
+    [
+     "Call types",
+     "completion, acompletion"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "image/routers/decision_router.py",
+     "href": "../../../../image/routers/decision_router.py"
+    }
+   ]
+  },
+  {
+   "id": "decision-service",
+   "label": "decision-service:8000",
+   "lines": [
+    "decision-service:8000"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "A decision service of the host, not part of this stack. It answers three questions: route, hard and private. The hook waits at most 150 ms.",
+   "facts": [
+    [
+     "Example URL",
+     "http://decision-service:8000/v1/systemone"
+    ],
+    [
+     "Key",
+     "DECISION_API_KEY"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "rule-image",
+   "label": "1. image part",
+   "lines": [
+    "1. image part"
+   ],
+   "group": "rule",
+   "part": "option",
+   "summary": "The message has an image part. The hook sets image_model. It makes no decision call.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "rule-timeout",
+   "label": "2. timeout or error",
+   "lines": [
+    "2. timeout or error"
+   ],
+   "group": "rule",
+   "part": "option",
+   "summary": "The decision service times out after 150 ms or fails. The hook sets default_model.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "rule-confidence",
+   "label": "3. low confidence",
+   "lines": [
+    "3. low confidence"
+   ],
+   "group": "rule",
+   "part": "option",
+   "summary": "The route confidence is below min_confidence, 0.5 in the example. The hook sets default_model. The log line has review: true.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "rule-routes",
+   "label": "4. first matching row",
+   "lines": [
+    "4. first matching row"
+   ],
+   "group": "rule",
+   "part": "option",
+   "summary": "Otherwise the hook uses the first matching row of routes. A row matches by route and by the hard score.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "rule-private",
+   "label": "5. private guard",
+   "lines": [
+    "5. private guard"
+   ],
+   "group": "rule",
+   "part": "option",
+   "summary": "private is 0.5 or more and the model starts with a remote prefix. The hook then sets private.local_model. This is a probability check, not a proof.",
+   "facts": [
+    [
+     "Remote prefixes",
+     "openrouter/, codex1/, codex2/, codex-auto/"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "model-image",
+   "label": "local/vision-model",
+   "lines": [
+    "local/vision-model"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "image_model of the example. A request with an image part goes here. The name is generic.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "model-default",
+   "label": "local/general-model",
+   "lines": [
+    "local/general-model"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "default_model and private.local_model of the example. Rules 2, 3 and 5 can set it. The auto entry of the gateway file uses its litellm_params.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    },
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "model-route",
+   "label": "row model",
+   "lines": [
+    "row model"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "The model of the matching row, for example local/coder-model or local/small-chat-model. The example table maps only to local models. Rule 5 is a guard for later edits.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    },
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "litellm-router",
+   "label": "LiteLLM router",
+   "lines": [
+    "LiteLLM router"
+   ],
+   "group": "code",
+   "part": "option",
+   "summary": "The router of the gateway gets the rewritten model. It sends the request to the route of that model. A local model goes to a local endpoint.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    }
+   ]
+  },
+  {
+   "id": "decision-log",
+   "label": "decision-router.jsonl",
+   "lines": [
+    "decision-router.jsonl"
+   ],
+   "group": "storage",
+   "part": "option",
+   "summary": "One JSON line for each request, at /state/decision-router.jsonl in the container. It holds the model, the reason, the scores and a hash prefix of the text. It stores an excerpt only when private is below 0.5.",
+   "facts": [
+    [
+     "Host path",
+     "state/decision-router/decision-router.jsonl"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "pass-decision",
+   "label": "/decision/*",
+   "lines": [
+    "/decision/*"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "A pass-through route to the decision service. The client needs a LiteLLM key, and LiteLLM sets the backend key. It is not a model_list entry.",
+   "facts": [
+    [
+     "Backend key",
+     "DECISION_API_KEY"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-routes.md",
+     "href": "../../../../docs/decision-routes.md"
+    }
+   ]
+  },
+  {
+   "id": "pass-public",
+   "label": "/public-llm/*",
+   "lines": [
+    "/public-llm/*"
+   ],
+   "group": "route",
+   "part": "option",
+   "summary": "A pass-through route to a paid public service. The request leaves the network. Do not send private data to it.",
+   "facts": [
+    [
+     "Backend key",
+     "PUBLIC_LLM_API_KEY"
+    ]
+   ],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-routes.md",
+     "href": "../../../../docs/decision-routes.md"
+    }
+   ]
+  },
+  {
+   "id": "public-llm",
+   "label": "api.example.com",
+   "lines": [
+    "api.example.com"
+   ],
+   "group": "provider",
+   "part": "option",
+   "summary": "The example public service of the pass-through route. It is outside the network of the host. Track its spend in its own console.",
+   "facts": [],
+   "views": [
+    "decision"
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-routes.md",
+     "href": "../../../../docs/decision-routes.md"
+    }
+   ]
+  },
+  {
+   "id": "branch-topic",
+   "label": "topic/*",
+   "lines": [
+    "topic/*"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "One branch for each change. It starts at local-dev and merges into local-dev after review.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "remote-upstream",
+   "label": "upstream",
+   "lines": [
+    "upstream"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "The upstream LiteLLM repository. It is fetch only, and its push URL is DISABLED. scripts/fetch-upstream.sh fetches one release tag to compare files.",
+   "facts": [
+    [
+     "URL",
+     "https://github.com/BerriAI/litellm.git"
+    ]
+   ],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/remotes.md",
+     "href": "../../../../docs/remotes.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "branch-local-dev",
+   "label": "local-dev",
+   "lines": [
+    "local-dev"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "The private integration branch of a host. Its history can hold host values. It never goes to a shared Git server.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "remote-origin",
+   "label": "origin",
+   "lines": [
+    "origin"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "The private integration server, or the source of a target clone. The pre-push hook lets other branches go only to origin.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "git-hooks",
+   "label": "Git hooks",
+   "lines": [
+    "Git hooks"
+   ],
+   "group": "check",
+   "part": "core",
+   "summary": "pre-commit, pre-merge-commit and pre-push scan each commit, merge and push. scripts/install-hooks.sh installs them. A hook fails closed without Docker or the scanner image.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    },
+    {
+     "text": "scripts/git-hooks/dispatch",
+     "href": "../../../../scripts/git-hooks/dispatch"
+    }
+   ]
+  },
+  {
+   "id": "public-lists",
+   "label": "public-patterns.tsv, public-allow.tsv",
+   "lines": [
+    "public-patterns.tsv,",
+    "public-allow.tsv"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The wording rules of the public check and the accepted exact lines. An accepted line is bound to its path by a SHA-256 hash. An edited line loses its exception.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/public-patterns.tsv",
+     "href": "../../../../scripts/public-patterns.tsv"
+    },
+    {
+     "text": "scripts/public-allow.tsv",
+     "href": "../../../../scripts/public-allow.tsv"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "deny-lists",
+   "label": "host-values.deny, host-values.regex",
+   "lines": [
+    "host-values.deny,",
+    "host-values.regex"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The host-value rules of the scan. The tracked deny list holds no pattern. The values of one host are in the untracked .local/host-values.deny.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/host-values.deny",
+     "href": "../../../../scripts/host-values.deny"
+    },
+    {
+     "text": "scripts/host-values.regex",
+     "href": "../../../../scripts/host-values.regex"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "promote-sh",
+   "label": "scripts/promote.sh",
+   "lines": [
+    "scripts/promote.sh"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "The promotion command checks an isolated snapshot and prints a plan by default. --apply makes the local refs, and --push also publishes them. It builds no image and changes no service.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/promote.sh",
+     "href": "../../../../scripts/promote.sh"
+    },
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    }
+   ]
+  },
+  {
+   "id": "public-check",
+   "label": "scripts/public_check.sh",
+   "lines": [
+    "scripts/public_check.sh"
+   ],
+   "group": "check",
+   "part": "core",
+   "summary": "The public check reads the tree, the messages and the identities. It runs scan.sh at level fail on the exact blobs. Matched values stay hidden.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/public_check.sh",
+     "href": "../../../../scripts/public_check.sh"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "scan-sh",
+   "label": "scripts/scan.sh",
+   "lines": [
+    "scripts/scan.sh"
+   ],
+   "group": "check",
+   "part": "core",
+   "summary": "The scan stops a secret or a host value before it goes to a remote or into an image. A secret always fails. A host value fails on portable and portable-v* and gives a warning on other branches.",
+   "facts": [
+    [
+     "Modes",
+     "tree, staged, history, image, all, selftest"
+    ],
+    [
+     "Exit codes",
+     "0 clean, 1 finding, 2 error"
+    ]
+   ],
+   "views": [
+    "release",
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/scan.sh",
+     "href": "../../../../scripts/scan.sh"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "gitleaks",
+   "label": "gitleaks v8.28.0",
+   "lines": [
+    "gitleaks v8.28.0"
+   ],
+   "group": "check",
+   "part": "core",
+   "summary": "The scanner image, pinned by digest in scripts/scan.sh. Each run uses --network none, read-only mounts and --redact. With the image present, the scan needs no network.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    },
+    {
+     "text": "scripts/scan.sh",
+     "href": "../../../../scripts/scan.sh"
+    }
+   ]
+  },
+  {
+   "id": "branch-portable",
+   "label": "portable",
+   "lines": [
+    "portable"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "Snapshot commits with the files of local-dev and no development history. The previous snapshot is the only parent. Only portable and its release tags go to a shared Git server.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "tag-portable",
+   "label": "portable-vX.Y.Z",
+   "lines": [
+    "portable-vX.Y.Z"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "An annotated release tag on a snapshot. scripts/build.sh uses X.Y.Z in the image tag. An existing tag stops a later run with the same version.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "remote-github",
+   "label": "github",
+   "lines": [
+    "github"
+   ],
+   "group": "git",
+   "part": "core",
+   "summary": "The default publication remote. A push needs an approved plan of scripts/promote.sh. The remote may hold only HEAD, portable and portable-v* tags.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    }
+   ]
+  },
+  {
+   "id": "ci",
+   "label": "CI pipeline",
+   "lines": [
+    "CI pipeline"
+   ],
+   "group": "check",
+   "part": "option",
+   "summary": "A pipeline calls the same scripts as a host. The repo gives no pipeline file for one CI product. A push must start only from portable or a portable-v* tag.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    }
+   ]
+  },
+  {
+   "id": "check-prereqs",
+   "label": "scripts/check-prereqs.sh",
+   "lines": [
+    "scripts/check-prereqs.sh"
+   ],
+   "group": "check",
+   "part": "core",
+   "summary": "The script checks the host tools before an install or a pipeline run. It stops with exit code 1 when a hard requirement is missing. Node 24 is a hard requirement.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/check-prereqs.sh",
+     "href": "../../../../scripts/check-prereqs.sh"
+    },
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "build-sh",
+   "label": "scripts/build.sh",
+   "lines": [
+    "scripts/build.sh"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The script starts a build with docker buildx bake -f docker-bake.hcl. It reads the revision and the commit time from Git. It refuses a dirty tree for release and pushes only with --push.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "scripts/build.sh",
+     "href": "../../../../scripts/build.sh"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "base-image",
+   "label": "LiteLLM 1.103.0 base image",
+   "lines": [
+    "LiteLLM 1.103.0 base image"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The upstream image ghcr.io/berriai/litellm, pinned by index digest in Dockerfile and docker-bake.hcl. BASE_IMAGE names a mirror with the same digest. The hooks stop a version that is not in TESTED_VERSIONS.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    },
+    {
+     "text": "docker-bake.hcl",
+     "href": "../../../../docker-bake.hcl"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "python-image",
+   "label": "python:3.13-slim-bookworm",
+   "lines": [
+    "python:3.13-slim-bookworm"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "A Python image, pinned by digest. It installs pytest for the test target only. It is not part of the gateway image.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "dockerfile",
+   "label": "Dockerfile",
+   "lines": [
+    "Dockerfile"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The stages addons, gateway, smoke, pytest and test. The final stage gateway has no RUN step. The stage addons sets owner, mode and file times of the hooks and routers.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "bake",
+   "label": "docker-bake.hcl",
+   "lines": [
+    "docker-bake.hcl"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The build definition with the targets gateway, smoke, test and release. It sets the tag <LITELLM_VERSION>-p<PORTABLE_VERSION> and the labels. The pipeline file holds no build logic.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docker-bake.hcl",
+     "href": "../../../../docker-bake.hcl"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    }
+   ]
+  },
+  {
+   "id": "target-smoke",
+   "label": "smoke",
+   "lines": [
+    "smoke"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The target starts python -c pass on the gateway image. It fails when the hooks stop an untested LiteLLM version. scripts/build.sh builds it before gateway and release.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    }
+   ]
+  },
+  {
+   "id": "target-gateway",
+   "label": "gateway (target)",
+   "lines": [
+    "gateway (target)"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The default target for the host platform. It loads the image into the local image store. Its tag is litellm-gateway:1.103.0-p<portable version>.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "docker-bake.hcl",
+     "href": "../../../../docker-bake.hcl"
+    }
+   ]
+  },
+  {
+   "id": "target-test",
+   "label": "test",
+   "lines": [
+    "test"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The target runs pytest on tests/ inside the gateway image, with no network in that step. The build fails when a test fails. It exports no image.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "Dockerfile",
+     "href": "../../../../Dockerfile"
+    },
+    {
+     "text": "tests/README.md",
+     "href": "../../../../tests/README.md"
+    }
+   ]
+  },
+  {
+   "id": "target-release",
+   "label": "release",
+   "lines": [
+    "release"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The target builds linux/amd64 and linux/arm64. It needs a builder with the docker-container driver. The output is a push or an OCI archive.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    }
+   ]
+  },
+  {
+   "id": "image-tagged",
+   "label": "litellm-gateway:1.103.0-pX.Y.Z",
+   "lines": [
+    "litellm-gateway:",
+    "1.103.0-pX.Y.Z"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The image of scripts/build.sh with labels for the revision, the version and the time. Without a release tag at HEAD, the portable version uses git describe. Compose uses it only when GATEWAY_IMAGE names it.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "registry",
+   "label": "<registry>/litellm-gateway",
+   "lines": [
+    "<registry>/litellm-gateway"
+   ],
+   "group": "build",
+   "part": "option",
+   "summary": "The registry of a released image. A deployment uses the index digest, not the tag. GATEWAY_IMAGE then names the image with its digest.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "oci-archive",
+   "label": "OCI archive",
+   "lines": [
+    "OCI archive"
+   ],
+   "group": "build",
+   "part": "option",
+   "summary": "scripts/build.sh --oci FILE release writes both platforms to one archive. Two builds of the same revision give the same index digest without provenance.",
+   "facts": [],
+   "views": [
+    "release"
+   ],
+   "sources": [
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    }
+   ]
+  },
+  {
+   "id": "env-example",
+   "label": ".env.example",
+   "lines": [
+    ".env.example"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The tracked template of .env with empty secrets. Do not copy it to .env: Compose refuses to start with its empty secrets. The host settings in it are comment lines.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": ".env.example",
+     "href": "../../../../.env.example"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "create-env",
+   "label": "scripts/create-env.py",
+   "lines": [
+    "scripts/create-env.py"
+   ],
+   "group": "tool",
+   "part": "core",
+   "summary": "The script makes .env from .env.example with new random secrets and mode 0600. It refuses to replace a .env that exists. It prints key names only.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/create-env.py",
+     "href": "../../../../scripts/create-env.py"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "compose-yaml",
+   "label": "compose.yaml",
+   "lines": [
+    "compose.yaml"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The base Compose file with gateway and database. It sets name: litellm and has no external network and no fixed container name.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "compose-codex",
+   "label": "compose.codex.yaml",
+   "lines": [
+    "compose.codex.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The optional Compose file with codex1, codex2, codex3 and codex-router. It is off by default. COMPOSE_FILE or -f adds it.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "compose-copilot",
+   "label": "compose.copilot.yaml",
+   "lines": [
+    "compose.copilot.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The optional Compose file with the service copilot. It is off by default. Add it to COMPOSE_FILE only after the login.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "copilot-yaml",
+   "label": "config/copilot.yaml",
+   "lines": [
+    "config/copilot.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The tracked configuration of copilot, with placeholder model ids. A host copies it to .local/config/copilot.yaml and keeps the ids of its account.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "config/copilot.yaml",
+     "href": "../../../../config/copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "sync-local-models",
+   "label": "scripts/sync-local-models.py",
+   "lines": [
+    "scripts/sync-",
+    "local-models.py"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script reads the model list of each local endpoint and writes one route for each model. It writes nothing when an endpoint does not answer.",
+   "facts": [
+    [
+     "Endpoints",
+     "--endpoint NAME=URL or LOCAL_ENDPOINTS"
+    ]
+   ],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/sync-local-models.py",
+     "href": "../../../../scripts/sync-local-models.py"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "enable-anthropic",
+   "label": "scripts/enable-anthropic.py",
+   "lines": [
+    "scripts/enable-",
+    "anthropic.py"
+   ],
+   "group": "tool",
+   "part": "option",
+   "summary": "The script adds the anthropic/* route and writes ANTHROPIC_API_KEY into .env. It reads the credential from a hidden prompt.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/enable-anthropic.py",
+     "href": "../../../../scripts/enable-anthropic.py"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  },
+  {
+   "id": "gateway-config-py",
+   "label": "scripts/gateway_config.py",
+   "lines": [
+    "scripts/gateway_config.py"
+   ],
+   "group": "tool",
+   "part": "core",
+   "summary": "The shared code that finds and writes the host gateway file. It writes a temporary file and then replaces the target. It stops when GATEWAY_CONFIG points into config/.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/gateway_config.py",
+     "href": "../../../../scripts/gateway_config.py"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "diagram-source",
+   "label": "docs/diagrams/architecture-graph.json",
+   "lines": [
+    "docs/diagrams/",
+    "architecture-graph.json"
+   ],
+   "group": "config",
+   "part": "core",
+   "summary": "The tracked graph source of this page. It holds generic names only. Each node names the tracked files that prove it.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "scripts/build-architecture-html.py",
+     "href": "../../../../scripts/build-architecture-html.py"
+    }
+   ]
+  },
+  {
+   "id": "diagram-builder",
+   "label": "scripts/build-architecture-html.py",
+   "lines": [
+    "scripts/build-",
+    "architecture-html.py"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The builder writes one self-contained HTML page from the graph source. With --overlay it writes the private edition, and only to a path under .local/. --check compares the build with the file on disk.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "scripts/build-architecture-html.py",
+     "href": "../../../../scripts/build-architecture-html.py"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "diagram-page",
+   "label": "docs/architecture.html",
+   "lines": [
+    "docs/architecture.html"
+   ],
+   "group": "build",
+   "part": "core",
+   "summary": "The public edition of this page. It is tracked and holds no host value. It works from file:// with no network request.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    },
+    {
+     "text": "scripts/build-architecture-html.py",
+     "href": "../../../../scripts/build-architecture-html.py"
+    }
+   ]
+  },
+  {
+   "id": "copilot-host",
+   "label": ".local/config/copilot.yaml",
+   "lines": [
+    ".local/config/copilot.yaml"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The host copy of the configuration of copilot. It keeps only the model ids of the account. COPILOT_CONFIG in .env names it.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    },
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "local-deny",
+   "label": ".local/host-values.deny",
+   "lines": [
+    ".local/host-values.deny"
+   ],
+   "group": "check",
+   "part": "option",
+   "summary": "The host values of one host for the scan. Create it on each host that works on local-dev. A promotion clone needs a copy of it.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    },
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    }
+   ]
+  },
+  {
+   "id": "diagram-overlay",
+   "label": ".local/diagrams/overlay.json",
+   "lines": [
+    ".local/diagrams/",
+    "overlay.json"
+   ],
+   "group": "config",
+   "part": "option",
+   "summary": "The private overlay of this page. It replaces labels, summaries and values by node id and adds host-only nodes. It holds no secret.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "diagram-private",
+   "label": ".local/diagrams/architecture-local.html",
+   "lines": [
+    ".local/diagrams/",
+    "architecture-local.html"
+   ],
+   "group": "build",
+   "part": "option",
+   "summary": "The private edition of this page, with the values of one host. Git ignores it. Its header shows a banner for the private edition.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    }
+   ]
+  },
+  {
+   "id": "secrets-dir",
+   "label": "secrets/",
+   "lines": [
+    "secrets/"
+   ],
+   "group": "storage",
+   "part": "option",
+   "summary": "codex.env and copilot.env, the keys of the optional services, with mode 0600. Git ignores the directory. Back it up separately.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": ".gitignore",
+     "href": "../../../../.gitignore"
+    }
+   ]
+  },
+  {
+   "id": "state-dir",
+   "label": "state/",
+   "lines": [
+    "state/"
+   ],
+   "group": "storage",
+   "part": "option",
+   "summary": "The login tokens of the optional services: state/codexN/auth.json and state/copilot/. Git ignores the directory. The login containers and the services write it.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": ".gitignore",
+     "href": "../../../../.gitignore"
+    }
+   ]
+  },
+  {
+   "id": "compose-cli",
+   "label": "docker compose",
+   "lines": [
+    "docker compose"
+   ],
+   "group": "tool",
+   "part": "core",
+   "summary": "Compose merges the files of COMPOSE_FILE in order. A later file changes the values of an earlier one. It fills each ${VAR} from .env.",
+   "facts": [],
+   "views": [
+    "host-config"
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "from": "client",
+   "to": "published-port",
+   "kind": "request",
+   "label": "HTTP with a LiteLLM key",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "client",
+   "to": "reverse-proxy",
+   "kind": "request",
+   "label": "HTTPS to <domain>",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "client",
+   "to": "gateway",
+   "kind": "request",
+   "label": "request with a LiteLLM key",
+   "part": "core",
+   "views": [
+    "codex",
+    "copilot",
+    "decision"
+   ]
+  },
+  {
+   "from": "published-port",
+   "to": "gateway",
+   "kind": "request",
+   "label": "to port 4000",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "reverse-proxy",
+   "to": "gateway",
+   "kind": "request",
+   "label": "network proxy, litellm:4000",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "env-file",
+   "to": "gateway",
+   "kind": "config",
+   "label": "env_file and ${VAR}",
+   "part": "core",
+   "views": [
+    "request",
+    "copilot",
+    "host-config"
+   ]
+  },
+  {
+   "from": "gateway-example",
+   "to": "gateway",
+   "kind": "config",
+   "label": "default mount, read-only",
+   "part": "core",
+   "views": [
+    "request",
+    "host-config"
+   ]
+  },
+  {
+   "from": "host-gateway-file",
+   "to": "gateway",
+   "kind": "config",
+   "label": "mount when GATEWAY_CONFIG names it",
+   "part": "option",
+   "views": [
+    "request",
+    "codex",
+    "copilot",
+    "decision",
+    "host-config"
+   ]
+  },
+  {
+   "from": "image-local",
+   "to": "gateway",
+   "kind": "build",
+   "label": "image of the service",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "database",
+   "kind": "state",
+   "label": "DATABASE_URL, port 5432",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "database",
+   "to": "postgres-volume",
+   "kind": "state",
+   "label": "data directory",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "network-default",
+   "kind": "network",
+   "label": "joins",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "database",
+   "to": "network-default",
+   "kind": "network",
+   "label": "joins",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "route-openrouter",
+   "kind": "request",
+   "label": "model openrouter/*",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "route-local",
+   "kind": "request",
+   "label": "model local/example-model",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "route-openrouter",
+   "to": "openrouter",
+   "kind": "request",
+   "label": "HTTPS, OPENROUTER_API_KEY",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "route-local",
+   "to": "local-endpoint",
+   "kind": "request",
+   "label": "LOCAL_API_BASE",
+   "part": "core",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "codex-router",
+   "kind": "request",
+   "label": "codex-auto/* when the host file points here",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "codex3",
+   "kind": "request",
+   "label": "codex3/*, codex-auto/* first",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "codex2",
+   "kind": "request",
+   "label": "codex2/*, fallback",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "codex1",
+   "kind": "request",
+   "label": "codex1/*, last fallback",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "copilot",
+   "kind": "request",
+   "label": "copilot/*",
+   "part": "option",
+   "views": [
+    "request"
+   ]
+  },
+  {
+   "from": "codex-router",
+   "to": "codex3",
+   "kind": "fallback",
+   "label": "1st in the order",
+   "part": "option",
+   "views": [
+    "request",
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-router",
+   "to": "codex2",
+   "kind": "fallback",
+   "label": "2nd in the order",
+   "part": "option",
+   "views": [
+    "request",
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-router",
+   "to": "codex1",
+   "kind": "fallback",
+   "label": "last, no usage check",
+   "part": "option",
+   "views": [
+    "request",
+    "codex"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "route-codex-auto",
+   "kind": "request",
+   "label": "model codex-auto/<model>",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "route-codex-explicit",
+   "kind": "request",
+   "label": "model codexN/<model>",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-auto",
+   "to": "codex3",
+   "kind": "fallback",
+   "label": "primary with three accounts",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-auto",
+   "to": "codex2",
+   "kind": "fallback",
+   "label": "fallback 1, primary with two accounts",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-auto",
+   "to": "codex1",
+   "kind": "fallback",
+   "label": "fallback 2, the last",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-auto",
+   "to": "codex-router",
+   "kind": "request",
+   "label": "alternative: http://codex-router:4000/v1",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-explicit",
+   "to": "codex3",
+   "kind": "request",
+   "label": "codex3/*",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-explicit",
+   "to": "codex2",
+   "kind": "request",
+   "label": "codex2/*",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "route-codex-explicit",
+   "to": "codex1",
+   "kind": "request",
+   "label": "codex1/*",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "account-order",
+   "to": "codex-router",
+   "kind": "config",
+   "label": "preference order",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "quota-router-code",
+   "to": "codex-router",
+   "kind": "code",
+   "label": "runs quota_router:app",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "session-id-hook",
+   "to": "quota-router-code",
+   "kind": "code",
+   "label": "cache_session_id",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "test-quota-router",
+   "to": "quota-router-code",
+   "kind": "check",
+   "label": "simulated responses",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-secrets",
+   "to": "codex-router",
+   "kind": "config",
+   "label": "CODEX_MASTER_KEY",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-secrets",
+   "to": "codex3",
+   "kind": "config",
+   "label": "CODEX_MASTER_KEY",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-secrets",
+   "to": "codex2",
+   "kind": "config",
+   "label": "CODEX_MASTER_KEY",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-secrets",
+   "to": "codex1",
+   "kind": "config",
+   "label": "CODEX_MASTER_KEY",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-config",
+   "to": "codex3",
+   "kind": "config",
+   "label": "read-only mount",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-config",
+   "to": "codex2",
+   "kind": "config",
+   "label": "read-only mount",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-config",
+   "to": "codex1",
+   "kind": "config",
+   "label": "read-only mount",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex3",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "reads and refreshes its own file",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex2",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "reads and refreshes its own file",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex1",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "reads and refreshes its own file",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-router",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "reads codex2 and codex3, read-only",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex3",
+   "to": "chatgpt",
+   "kind": "request",
+   "label": "requests",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex2",
+   "to": "chatgpt",
+   "kind": "request",
+   "label": "requests",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex1",
+   "to": "chatgpt",
+   "kind": "request",
+   "label": "requests",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-router",
+   "to": "chatgpt",
+   "kind": "request",
+   "label": "usage check, cached 60 s",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "login-codex",
+   "to": "openai-auth",
+   "kind": "request",
+   "label": "device-code login",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "login-codex",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "writes auth.json, mode 0600",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "reauth-codex",
+   "to": "login-codex",
+   "kind": "control",
+   "label": "runs login-codex.sh N",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "reauth-codex",
+   "to": "state-codex",
+   "kind": "state",
+   "label": "backs up auth.json",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "gateway-codex-example",
+   "to": "enable-codex",
+   "kind": "config",
+   "label": "route template",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "enable-codex",
+   "to": "host-gateway-file",
+   "kind": "config",
+   "label": "writes the Codex routes",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "test-codex-routing",
+   "to": "enable-codex",
+   "kind": "check",
+   "label": "synthetic logins",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "codex-accounts-prototype",
+   "to": "gateway",
+   "kind": "code",
+   "label": "prototype, off by default",
+   "part": "option",
+   "views": [
+    "codex"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "route-copilot",
+   "kind": "request",
+   "label": "model copilot/<alias>",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "route-copilot",
+   "to": "copilot",
+   "kind": "request",
+   "label": "COPILOT_MASTER_KEY, timeout 570 s",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "copilot",
+   "to": "copilot-api",
+   "kind": "request",
+   "label": "models and requests",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "copilot",
+   "to": "github-api",
+   "kind": "request",
+   "label": "new api-key.json, about every 30 min",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "copilot",
+   "to": "state-copilot",
+   "kind": "state",
+   "label": "reads access-token, writes api-key.json",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "copilot-config",
+   "to": "copilot",
+   "kind": "config",
+   "label": "COPILOT_CONFIG, read-only",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "copilot-secrets",
+   "to": "copilot",
+   "kind": "config",
+   "label": "COPILOT_MASTER_KEY",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "device-guard",
+   "to": "copilot",
+   "kind": "config",
+   "label": "a device flow fails at once",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "login-copilot",
+   "to": "github-login",
+   "kind": "request",
+   "label": "device login, codes valid 1 min",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "login-copilot",
+   "to": "github-api",
+   "kind": "request",
+   "label": "key exchange",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "login-copilot",
+   "to": "state-copilot",
+   "kind": "state",
+   "label": "writes the token files, mode 0600",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "gateway-copilot-example",
+   "to": "host-gateway-file",
+   "kind": "config",
+   "label": "copy the entries by hand",
+   "part": "option",
+   "views": [
+    "copilot"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "decision-hook",
+   "kind": "code",
+   "label": "pre-call hook for model auto",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "host-gateway-file",
+   "to": "decision-hook",
+   "kind": "config",
+   "label": "callback and the auto entry",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "host-override",
+   "to": "decision-hook",
+   "kind": "config",
+   "label": "mounts the hook and the routes file",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-routes-file",
+   "to": "decision-hook",
+   "kind": "config",
+   "label": "DECISION_ROUTES",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-switch",
+   "to": "decision-hook",
+   "kind": "config",
+   "label": "on, or skip the call",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-hook",
+   "to": "decision-service",
+   "kind": "request",
+   "label": "end of the last user message",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-hook",
+   "to": "rule-image",
+   "kind": "rule",
+   "label": "rule 1",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-image",
+   "to": "rule-timeout",
+   "kind": "rule",
+   "label": "no image part",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-service",
+   "to": "rule-timeout",
+   "kind": "rule",
+   "label": "route, hard, private",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-timeout",
+   "to": "rule-confidence",
+   "kind": "rule",
+   "label": "answer in time",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-confidence",
+   "to": "rule-routes",
+   "kind": "rule",
+   "label": "confidence 0.5 or more",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-routes",
+   "to": "rule-private",
+   "kind": "rule",
+   "label": "row model chosen",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-image",
+   "to": "model-image",
+   "kind": "rule",
+   "label": "image part",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-timeout",
+   "to": "model-default",
+   "kind": "rule",
+   "label": "timeout or error",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-confidence",
+   "to": "model-default",
+   "kind": "rule",
+   "label": "below 0.5, review: true",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-private",
+   "to": "model-default",
+   "kind": "rule",
+   "label": "private text and a remote model",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "rule-private",
+   "to": "model-route",
+   "kind": "rule",
+   "label": "otherwise",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "model-image",
+   "to": "litellm-router",
+   "kind": "request",
+   "label": "rewritten model",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "model-default",
+   "to": "litellm-router",
+   "kind": "request",
+   "label": "rewritten model",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "model-route",
+   "to": "litellm-router",
+   "kind": "request",
+   "label": "rewritten model",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "litellm-router",
+   "to": "local-endpoint",
+   "kind": "request",
+   "label": "local model",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "decision-hook",
+   "to": "decision-log",
+   "kind": "state",
+   "label": "one JSON line for each request",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "pass-decision",
+   "kind": "request",
+   "label": "path /decision",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "pass-decision",
+   "to": "decision-service",
+   "kind": "request",
+   "label": "DECISION_API_KEY",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "pass-public",
+   "kind": "request",
+   "label": "path /public-llm",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "pass-public",
+   "to": "public-llm",
+   "kind": "request",
+   "label": "leaves the network",
+   "part": "option",
+   "views": [
+    "decision"
+   ]
+  },
+  {
+   "from": "branch-topic",
+   "to": "branch-local-dev",
+   "kind": "git",
+   "label": "merge after review",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "remote-upstream",
+   "to": "branch-local-dev",
+   "kind": "git",
+   "label": "fetch one release tag, compare",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "branch-local-dev",
+   "to": "remote-origin",
+   "kind": "git",
+   "label": "push to the private server only",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "git-hooks",
+   "to": "scan-sh",
+   "kind": "check",
+   "label": "staged and history scans",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "branch-local-dev",
+   "to": "promote-sh",
+   "kind": "git",
+   "label": "source tree of the snapshot",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "promote-sh",
+   "to": "public-check",
+   "kind": "check",
+   "label": "tree, messages, identities",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "public-check",
+   "to": "scan-sh",
+   "kind": "check",
+   "label": "scan.sh --level fail",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "public-lists",
+   "to": "public-check",
+   "kind": "config",
+   "label": "wording rules",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "deny-lists",
+   "to": "scan-sh",
+   "kind": "config",
+   "label": "host-value rules",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "scan-sh",
+   "to": "gitleaks",
+   "kind": "control",
+   "label": "runs with --network none",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "promote-sh",
+   "to": "branch-portable",
+   "kind": "git",
+   "label": "snapshot commit",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "promote-sh",
+   "to": "tag-portable",
+   "kind": "git",
+   "label": "annotated tag",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "branch-portable",
+   "to": "remote-github",
+   "kind": "git",
+   "label": "push after an approved plan",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "tag-portable",
+   "to": "remote-github",
+   "kind": "git",
+   "label": "push with the branch",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "tag-portable",
+   "to": "build-sh",
+   "kind": "build",
+   "label": "X.Y.Z of the image tag",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "ci",
+   "to": "check-prereqs",
+   "kind": "check",
+   "label": "tools of the runner",
+   "part": "option",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "ci",
+   "to": "scan-sh",
+   "kind": "check",
+   "label": "SCAN_REF=<ref> scan.sh all",
+   "part": "option",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "ci",
+   "to": "build-sh",
+   "kind": "build",
+   "label": "test, then release on a tag",
+   "part": "option",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "build-sh",
+   "to": "bake",
+   "kind": "build",
+   "label": "bake -f docker-bake.hcl",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "base-image",
+   "to": "dockerfile",
+   "kind": "build",
+   "label": "FROM, index digest",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "dockerfile",
+   "to": "bake",
+   "kind": "build",
+   "label": "stages of the targets",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "python-image",
+   "to": "target-test",
+   "kind": "build",
+   "label": "pytest install stage",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "bake",
+   "to": "target-smoke",
+   "kind": "build",
+   "label": "target",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "bake",
+   "to": "target-gateway",
+   "kind": "build",
+   "label": "default target",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "bake",
+   "to": "target-test",
+   "kind": "build",
+   "label": "target",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "bake",
+   "to": "target-release",
+   "kind": "build",
+   "label": "target",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "target-smoke",
+   "to": "target-gateway",
+   "kind": "check",
+   "label": "runs first",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "target-smoke",
+   "to": "target-release",
+   "kind": "check",
+   "label": "runs first",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "target-gateway",
+   "to": "image-tagged",
+   "kind": "build",
+   "label": "local image store",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "target-release",
+   "to": "registry",
+   "kind": "build",
+   "label": "--push, two platforms",
+   "part": "option",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "target-release",
+   "to": "oci-archive",
+   "kind": "build",
+   "label": "--oci FILE",
+   "part": "option",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "dockerfile",
+   "to": "image-local",
+   "kind": "build",
+   "label": "docker compose up -d --build",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "scan-sh",
+   "to": "image-tagged",
+   "kind": "check",
+   "label": "image mode: added layers",
+   "part": "core",
+   "views": [
+    "release"
+   ]
+  },
+  {
+   "from": "env-example",
+   "to": "create-env",
+   "kind": "config",
+   "label": "template",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "create-env",
+   "to": "env-file",
+   "kind": "config",
+   "label": "random secrets, mode 0600",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "env-file",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "COMPOSE_FILE and ${VAR}",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "compose-yaml",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "first file",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "compose-codex",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "optional file",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "compose-copilot",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "optional file",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "host-override",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "last file",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "compose-cli",
+   "to": "gateway",
+   "kind": "control",
+   "label": "creates and recreates",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "gateway-example",
+   "to": "host-gateway-file",
+   "kind": "config",
+   "label": "copy as the start",
+   "part": "option",
+   "views": [
+    "request",
+    "host-config"
+   ]
+  },
+  {
+   "from": "gateway-config-py",
+   "to": "host-gateway-file",
+   "kind": "config",
+   "label": "writes; never a tracked file",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "sync-local-models",
+   "to": "gateway-config-py",
+   "kind": "code",
+   "label": "uses",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "enable-codex",
+   "to": "gateway-config-py",
+   "kind": "code",
+   "label": "uses",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "enable-anthropic",
+   "to": "gateway-config-py",
+   "kind": "code",
+   "label": "uses",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "enable-anthropic",
+   "to": "env-file",
+   "kind": "config",
+   "label": "ANTHROPIC_API_KEY",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "copilot-yaml",
+   "to": "copilot-host",
+   "kind": "config",
+   "label": "copy with the ids of the account",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "env-file",
+   "to": "copilot-host",
+   "kind": "config",
+   "label": "COPILOT_CONFIG names it",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "local-deny",
+   "to": "scan-sh",
+   "kind": "config",
+   "label": "host values of this host",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "secrets-dir",
+   "to": "compose-cli",
+   "kind": "config",
+   "label": "env_file of optional services",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "state-dir",
+   "to": "compose-cli",
+   "kind": "state",
+   "label": "token mounts",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "diagram-source",
+   "to": "diagram-builder",
+   "kind": "build",
+   "label": "public graph",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "diagram-builder",
+   "to": "diagram-page",
+   "kind": "build",
+   "label": "default output",
+   "part": "core",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "diagram-overlay",
+   "to": "diagram-builder",
+   "kind": "config",
+   "label": "--overlay",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  },
+  {
+   "from": "diagram-builder",
+   "to": "diagram-private",
+   "kind": "build",
+   "label": "--out under .local/",
+   "part": "option",
+   "views": [
+    "host-config"
+   ]
+  }
+ ],
+ "views": [
+  {
+   "id": "request",
+   "name": "Request path and base install",
+   "text": "A client calls the gateway on the published port, and the gateway sends the request to a provider.",
+   "nodes": [
+    "client",
+    "published-port",
+    "reverse-proxy",
+    "env-file",
+    "gateway-example",
+    "host-gateway-file",
+    "image-local",
+    "gateway",
+    "database",
+    "postgres-volume",
+    "network-default",
+    "codex-router",
+    "codex3",
+    "codex2",
+    "codex1",
+    "copilot",
+    "route-openrouter",
+    "route-local",
+    "openrouter",
+    "local-endpoint"
+   ],
+   "frames": [
+    {
+     "id": "project",
+     "label": "Compose project litellm",
+     "nodes": [
+      "gateway",
+      "database",
+      "postgres-volume",
+      "network-default",
+      "codex-router",
+      "codex3",
+      "codex2",
+      "codex1",
+      "copilot"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    },
+    {
+     "text": "compose.yaml",
+     "href": "../../../../compose.yaml"
+    },
+    {
+     "text": "README.md",
+     "href": "../../../../README.md"
+    }
+   ]
+  },
+  {
+   "id": "codex",
+   "name": "Codex services and the quota router",
+   "text": "Up to three ChatGPT accounts run in their own proxies, and the automatic route prefers codex3, then codex2, then codex1.",
+   "nodes": [
+    "client",
+    "gateway",
+    "gateway-codex-example",
+    "enable-codex",
+    "test-codex-routing",
+    "host-gateway-file",
+    "codex-accounts-prototype",
+    "route-codex-auto",
+    "route-codex-explicit",
+    "account-order",
+    "quota-router-code",
+    "session-id-hook",
+    "test-quota-router",
+    "codex-secrets",
+    "codex-config",
+    "codex-router",
+    "codex3",
+    "codex2",
+    "codex1",
+    "state-codex",
+    "login-codex",
+    "reauth-codex",
+    "chatgpt",
+    "openai-auth"
+   ],
+   "frames": [
+    {
+     "id": "codex-compose",
+     "label": "compose.codex.yaml",
+     "nodes": [
+      "codex-router",
+      "codex3",
+      "codex2",
+      "codex1"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "compose.codex.yaml",
+     "href": "../../../../compose.codex.yaml"
+    },
+    {
+     "text": "docs/codex-services.md",
+     "href": "../../../../docs/codex-services.md"
+    },
+    {
+     "text": "docs/codex-accounts.md",
+     "href": "../../../../docs/codex-accounts.md"
+    },
+    {
+     "text": "tests/test_codex_routing.py",
+     "href": "../../../../tests/test_codex_routing.py"
+    }
+   ]
+  },
+  {
+   "id": "copilot",
+   "name": "Copilot service",
+   "text": "One GitHub Copilot account runs in the separate service copilot, and the gateway calls it on the project network.",
+   "nodes": [
+    "client",
+    "env-file",
+    "host-gateway-file",
+    "gateway-copilot-example",
+    "gateway",
+    "route-copilot",
+    "copilot-config",
+    "copilot-secrets",
+    "device-guard",
+    "copilot",
+    "state-copilot",
+    "login-copilot",
+    "github-login",
+    "github-api",
+    "copilot-api"
+   ],
+   "frames": [
+    {
+     "id": "copilot-compose",
+     "label": "compose.copilot.yaml",
+     "nodes": [
+      "copilot",
+      "device-guard"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "compose.copilot.yaml",
+     "href": "../../../../compose.copilot.yaml"
+    },
+    {
+     "text": "docs/copilot.md",
+     "href": "../../../../docs/copilot.md"
+    }
+   ]
+  },
+  {
+   "id": "decision",
+   "name": "Decision router for model=auto",
+   "text": "A pre-call hook asks a decision service and applies five rules in order to set the model of a request for auto.",
+   "nodes": [
+    "client",
+    "host-gateway-file",
+    "host-override",
+    "decision-routes-file",
+    "decision-switch",
+    "gateway",
+    "decision-hook",
+    "decision-service",
+    "rule-image",
+    "rule-timeout",
+    "rule-confidence",
+    "rule-routes",
+    "rule-private",
+    "model-image",
+    "model-default",
+    "model-route",
+    "litellm-router",
+    "local-endpoint",
+    "decision-log",
+    "pass-decision",
+    "pass-public",
+    "public-llm"
+   ],
+   "frames": [
+    {
+     "id": "rules",
+     "label": "Rules, in order",
+     "nodes": [
+      "rule-image",
+      "rule-timeout",
+      "rule-confidence",
+      "rule-routes",
+      "rule-private"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "docs/decision-router.md",
+     "href": "../../../../docs/decision-router.md"
+    },
+    {
+     "text": "docs/decision-routes.md",
+     "href": "../../../../docs/decision-routes.md"
+    },
+    {
+     "text": "config/decision-routes.example.yaml",
+     "href": "../../../../config/decision-routes.example.yaml"
+    }
+   ]
+  },
+  {
+   "id": "release",
+   "name": "Image build and release",
+   "text": "Work flows from topic branches to local-dev, a checked snapshot goes to portable, and a release tag builds the image.",
+   "nodes": [
+    "branch-topic",
+    "remote-upstream",
+    "branch-local-dev",
+    "remote-origin",
+    "git-hooks",
+    "public-lists",
+    "deny-lists",
+    "promote-sh",
+    "public-check",
+    "scan-sh",
+    "gitleaks",
+    "branch-portable",
+    "tag-portable",
+    "remote-github",
+    "ci",
+    "check-prereqs",
+    "build-sh",
+    "base-image",
+    "python-image",
+    "dockerfile",
+    "bake",
+    "target-smoke",
+    "target-gateway",
+    "target-test",
+    "target-release",
+    "image-local",
+    "image-tagged",
+    "registry",
+    "oci-archive"
+   ],
+   "frames": [
+    {
+     "id": "bake-targets",
+     "label": "Bake targets",
+     "nodes": [
+      "target-smoke",
+      "target-gateway",
+      "target-test",
+      "target-release"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "docs/branches.md",
+     "href": "../../../../docs/branches.md"
+    },
+    {
+     "text": "docs/image.md",
+     "href": "../../../../docs/image.md"
+    },
+    {
+     "text": "docs/ci.md",
+     "href": "../../../../docs/ci.md"
+    },
+    {
+     "text": "docs/secret-handling.md",
+     "href": "../../../../docs/secret-handling.md"
+    }
+   ]
+  },
+  {
+   "id": "host-config",
+   "name": "Host configuration layers",
+   "text": "Tracked files hold a generic stack, and each host adds its own values in files that Git ignores.",
+   "nodes": [
+    "env-example",
+    "create-env",
+    "compose-yaml",
+    "compose-codex",
+    "compose-copilot",
+    "gateway-example",
+    "copilot-yaml",
+    "sync-local-models",
+    "enable-codex",
+    "enable-anthropic",
+    "gateway-config-py",
+    "diagram-source",
+    "diagram-builder",
+    "diagram-page",
+    "env-file",
+    "host-override",
+    "host-gateway-file",
+    "copilot-host",
+    "local-deny",
+    "diagram-overlay",
+    "diagram-private",
+    "secrets-dir",
+    "state-dir",
+    "compose-cli",
+    "gateway",
+    "scan-sh"
+   ],
+   "frames": [
+    {
+     "id": "tracked",
+     "label": "Tracked files",
+     "nodes": [
+      "env-example",
+      "create-env",
+      "compose-yaml",
+      "compose-codex",
+      "compose-copilot",
+      "gateway-example",
+      "copilot-yaml",
+      "sync-local-models",
+      "enable-codex",
+      "enable-anthropic",
+      "gateway-config-py",
+      "diagram-source",
+      "diagram-builder",
+      "diagram-page"
+     ]
+    },
+    {
+     "id": "ignored",
+     "label": "Git ignores these files",
+     "nodes": [
+      "env-file",
+      "host-override",
+      "host-gateway-file",
+      "copilot-host",
+      "local-deny",
+      "diagram-overlay",
+      "diagram-private",
+      "secrets-dir",
+      "state-dir"
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "text": "docs/host-configuration.md",
+     "href": "../../../../docs/host-configuration.md"
+    },
+    {
+     "text": ".gitignore",
+     "href": "../../../../.gitignore"
+    },
+    {
+     "text": "EXPLAINER.md",
+     "href": "../../../../EXPLAINER.md"
+    }
+   ]
+  }
+ ],
+ "tours": [
+  {
+   "id": "tour-request",
+   "view": "request",
+   "name": "Follow one request",
+   "steps": [
+    {
+     "nodes": [
+      "client",
+      "published-port"
+     ],
+     "text": "A client sends a request with a LiteLLM key to 127.0.0.1:4321. This is the only published port."
+    },
+    {
+     "nodes": [
+      "reverse-proxy"
+     ],
+     "text": "For a public address, a reverse proxy forwards HTTPS to litellm:4000. The proxy is an option of the host."
+    },
+    {
+     "nodes": [
+      "gateway",
+      "env-file",
+      "gateway-example"
+     ],
+     "text": "The gateway reads its keys from .env. It loads the default routes from config/gateway.example.yaml."
+    },
+    {
+     "nodes": [
+      "host-gateway-file"
+     ],
+     "text": "A host replaces the default routes with .local/config/gateway.yaml. GATEWAY_CONFIG in .env names the file."
+    },
+    {
+     "nodes": [
+      "database",
+      "postgres-volume",
+      "network-default"
+     ],
+     "text": "The gateway keeps keys and spend in Postgres. The data stays in the volume litellm_postgres-data."
+    },
+    {
+     "nodes": [
+      "route-openrouter",
+      "openrouter",
+      "route-local",
+      "local-endpoint"
+     ],
+     "text": "The gateway selects a route by the model name. The route sends the request to a provider."
+    },
+    {
+     "nodes": [
+      "codex-router",
+      "codex3",
+      "codex2",
+      "codex1",
+      "copilot"
+     ],
+     "text": "The optional services are off by default. The gateway reaches them by service name on the project network."
+    },
+    {
+     "nodes": [
+      "image-local"
+     ],
+     "text": "All services except database run one image. docker compose up -d --build builds it."
+    }
+   ]
+  },
+  {
+   "id": "tour-codex",
+   "view": "codex",
+   "name": "Codex accounts and the route order",
+   "steps": [
+    {
+     "nodes": [
+      "codex3",
+      "codex2",
+      "codex1"
+     ],
+     "text": "Each ChatGPT account has its own LiteLLM process. Each process keeps its own tokens."
+    },
+    {
+     "nodes": [
+      "login-codex",
+      "openai-auth",
+      "state-codex"
+     ],
+     "text": "A device-code login writes state/codexN/auth.json. Only the service of that account refreshes the file."
+    },
+    {
+     "nodes": [
+      "enable-codex",
+      "gateway-codex-example",
+      "host-gateway-file"
+     ],
+     "text": "scripts/enable-codex.py adds the Codex routes to the host gateway file. It counts the complete logins."
+    },
+    {
+     "nodes": [
+      "route-codex-explicit"
+     ],
+     "text": "codexN/<model> goes to one account. Use it for a request that continues an earlier response."
+    },
+    {
+     "nodes": [
+      "route-codex-auto",
+      "codex3",
+      "codex2",
+      "codex1"
+     ],
+     "text": "codex-auto/<model> uses the native fallback. It tries codex3, then codex2, then codex1."
+    },
+    {
+     "nodes": [
+      "codex-router",
+      "account-order",
+      "chatgpt"
+     ],
+     "text": "codex-router is the alternative for codex-auto. It checks the usage of each account and skips a blocked account."
+    },
+    {
+     "nodes": [
+      "session-id-hook",
+      "quota-router-code"
+     ],
+     "text": "A stable session id keeps one conversation on one prompt-cache server. The router uses the same id function."
+    },
+    {
+     "nodes": [
+      "test-codex-routing",
+      "test-quota-router"
+     ],
+     "text": "Two tests check the order with synthetic logins and simulated responses. They need no real account."
+    }
+   ]
+  },
+  {
+   "id": "tour-copilot",
+   "view": "copilot",
+   "name": "Copilot login and requests",
+   "steps": [
+    {
+     "nodes": [
+      "login-copilot",
+      "github-login"
+     ],
+     "text": "The login comes first, in a one-off container. You enter the newest code in a browser."
+    },
+    {
+     "nodes": [
+      "state-copilot",
+      "github-api"
+     ],
+     "text": "The login writes access-token and api-key.json. The service renews api-key.json about every 30 minutes."
+    },
+    {
+     "nodes": [
+      "copilot-config",
+      "copilot-secrets",
+      "device-guard",
+      "copilot"
+     ],
+     "text": "The service reads its model list and its key. The dead device-code address stops a login at the start."
+    },
+    {
+     "nodes": [
+      "gateway-copilot-example",
+      "host-gateway-file",
+      "route-copilot"
+     ],
+     "text": "You copy the copilot/ routes into the host gateway file. Each route goes to http://copilot:4000."
+    },
+    {
+     "nodes": [
+      "client",
+      "gateway",
+      "route-copilot",
+      "copilot",
+      "copilot-api"
+     ],
+     "text": "A request for copilot/<alias> goes through the gateway to the service. The service calls the Copilot API."
+    }
+   ]
+  },
+  {
+   "id": "tour-decision",
+   "view": "decision",
+   "name": "The five rules for model=auto",
+   "steps": [
+    {
+     "nodes": [
+      "client",
+      "gateway",
+      "decision-hook"
+     ],
+     "text": "A client sends the model auto. The pre-call hook of the gateway handles only this model."
+    },
+    {
+     "nodes": [
+      "host-gateway-file",
+      "host-override",
+      "decision-routes-file",
+      "decision-switch"
+     ],
+     "text": "A host turns the hook on in its own files. The tracked defaults do not load it."
+    },
+    {
+     "nodes": [
+      "rule-image",
+      "model-image"
+     ],
+     "text": "Rule 1 sends a message with an image part to image_model. It makes no decision call."
+    },
+    {
+     "nodes": [
+      "decision-service",
+      "rule-timeout",
+      "model-default"
+     ],
+     "text": "The hook asks the decision service and waits at most 150 ms. Rule 2 gives default_model after a timeout or an error."
+    },
+    {
+     "nodes": [
+      "rule-confidence",
+      "rule-routes",
+      "model-route"
+     ],
+     "text": "Rule 3 sends a low confidence to default_model. Rule 4 takes the first matching row of the table."
+    },
+    {
+     "nodes": [
+      "rule-private",
+      "model-default"
+     ],
+     "text": "Rule 5 keeps private text on a local model. It is a probability check, not a proof."
+    },
+    {
+     "nodes": [
+      "litellm-router",
+      "local-endpoint",
+      "decision-log"
+     ],
+     "text": "The router of the gateway sends the request to the chosen model. The hook writes one log line."
+    },
+    {
+     "nodes": [
+      "pass-decision",
+      "pass-public",
+      "public-llm"
+     ],
+     "text": "Pass-through routes are a separate path. They expose a backend behind the LiteLLM key."
+    }
+   ]
+  },
+  {
+   "id": "tour-release",
+   "view": "release",
+   "name": "From a topic branch to a released image",
+   "steps": [
+    {
+     "nodes": [
+      "branch-topic",
+      "branch-local-dev"
+     ],
+     "text": "Each change starts on a topic branch. It merges into local-dev after review."
+    },
+    {
+     "nodes": [
+      "git-hooks",
+      "scan-sh",
+      "deny-lists",
+      "gitleaks"
+     ],
+     "text": "The Git hooks scan each commit, merge and push. A secret always fails the scan."
+    },
+    {
+     "nodes": [
+      "remote-origin",
+      "remote-upstream"
+     ],
+     "text": "local-dev goes only to the private server origin. upstream is fetch only."
+    },
+    {
+     "nodes": [
+      "promote-sh",
+      "public-check",
+      "public-lists"
+     ],
+     "text": "scripts/promote.sh checks a snapshot of local-dev. The public check reads the tree, the messages and the identities."
+    },
+    {
+     "nodes": [
+      "branch-portable",
+      "tag-portable",
+      "remote-github"
+     ],
+     "text": "The snapshot goes to portable with a release tag. A push to github needs an approved plan."
+    },
+    {
+     "nodes": [
+      "build-sh",
+      "bake",
+      "dockerfile",
+      "base-image"
+     ],
+     "text": "scripts/build.sh builds from docker-bake.hcl. The base image is pinned by index digest."
+    },
+    {
+     "nodes": [
+      "target-smoke",
+      "target-gateway",
+      "target-test",
+      "target-release"
+     ],
+     "text": "smoke runs before gateway and release. test runs the tests inside the image."
+    },
+    {
+     "nodes": [
+      "image-tagged",
+      "registry",
+      "oci-archive",
+      "ci"
+     ],
+     "text": "A release builds two platforms. A deployment uses the index digest of the image."
+    }
+   ]
+  },
+  {
+   "id": "tour-host-config",
+   "view": "host-config",
+   "name": "Tracked defaults and host files",
+   "steps": [
+    {
+     "nodes": [
+      "env-example",
+      "create-env",
+      "env-file"
+     ],
+     "text": "scripts/create-env.py makes .env with new secrets. Git ignores .env."
+    },
+    {
+     "nodes": [
+      "compose-yaml",
+      "compose-codex",
+      "compose-copilot",
+      "host-override",
+      "compose-cli"
+     ],
+     "text": "COMPOSE_FILE lists the Compose files in order. The host override file comes last."
+    },
+    {
+     "nodes": [
+      "gateway-example",
+      "host-gateway-file",
+      "gateway"
+     ],
+     "text": "The gateway loads the example routes by default. GATEWAY_CONFIG selects the host gateway file."
+    },
+    {
+     "nodes": [
+      "sync-local-models",
+      "enable-codex",
+      "enable-anthropic",
+      "gateway-config-py"
+     ],
+     "text": "Three scripts write routes through scripts/gateway_config.py. They never write a tracked file."
+    },
+    {
+     "nodes": [
+      "copilot-yaml",
+      "copilot-host"
+     ],
+     "text": "A host keeps its Copilot model list in .local/config/copilot.yaml. COPILOT_CONFIG names it."
+    },
+    {
+     "nodes": [
+      "secrets-dir",
+      "state-dir",
+      "local-deny"
+     ],
+     "text": "secrets/ and state/ hold keys and tokens. .local/host-values.deny holds the host values for the scan."
+    },
+    {
+     "nodes": [
+      "diagram-source",
+      "diagram-builder",
+      "diagram-page",
+      "diagram-overlay",
+      "diagram-private"
+     ],
+     "text": "This page comes from a tracked graph source. A private overlay under .local/ makes the edition of one host."
+    }
+   ]
+  }
+ ],
+ "layout": {
+  "request": {
+   "dir": "LR",
+   "nodes": {
+    "client": [
+     72,
+     306,
+     120,
+     50
+    ],
+    "published-port": [
+     357,
+     234,
+     137,
+     50
+    ],
+    "reverse-proxy": [
+     361,
+     306,
+     129,
+     50
+    ],
+    "env-file": [
+     366,
+     162,
+     120,
+     50
+    ],
+    "gateway-example": [
+     60,
+     234,
+     144,
+     50
+    ],
+    "host-gateway-file": [
+     314,
+     378,
+     224,
+     50
+    ],
+    "image-local": [
+     332,
+     90,
+     188,
+     50
+    ],
+    "gateway": [
+     648,
+     234,
+     120,
+     50
+    ],
+    "database": [
+     904,
+     162,
+     120,
+     50
+    ],
+    "postgres-volume": [
+     1161,
+     90,
+     188,
+     50
+    ],
+    "network-default": [
+     1183,
+     162,
+     144,
+     50
+    ],
+    "codex-router": [
+     903,
+     234,
+     122,
+     50
+    ],
+    "codex3": [
+     1195,
+     234,
+     120,
+     50
+    ],
+    "codex2": [
+     1195,
+     306,
+     120,
+     50
+    ],
+    "codex1": [
+     1195,
+     378,
+     120,
+     50
+    ],
+    "copilot": [
+     904,
+     306,
+     120,
+     50
+    ],
+    "route-openrouter": [
+     903,
+     522,
+     122,
+     50
+    ],
+    "route-local": [
+     878,
+     594,
+     173,
+     50
+    ],
+    "openrouter": [
+     1195,
+     522,
+     120,
+     50
+    ],
+    "local-endpoint": [
+     1186,
+     594,
+     137,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "project",
+     "label": "Compose project litellm",
+     "x": 634,
+     "y": 60,
+     "w": 729,
+     "h": 382
+    }
+   ],
+   "width": 1423,
+   "height": 704
+  },
+  "codex": {
+   "dir": "TB",
+   "nodes": {
+    "client": [
+     565,
+     314,
+     120,
+     50
+    ],
+    "gateway": [
+     565,
+     426,
+     120,
+     50
+    ],
+    "gateway-codex-example": [
+     794,
+     90,
+     166,
+     50
+    ],
+    "enable-codex": [
+     776,
+     202,
+     202,
+     50
+    ],
+    "test-codex-routing": [
+     1021,
+     90,
+     151,
+     50
+    ],
+    "host-gateway-file": [
+     765,
+     314,
+     224,
+     50
+    ],
+    "codex-accounts-prototype": [
+     297,
+     314,
+     180,
+     50
+    ],
+    "route-codex-auto": [
+     304,
+     538,
+     166,
+     50
+    ],
+    "route-codex-explicit": [
+     556,
+     538,
+     137,
+     50
+    ],
+    "account-order": [
+     74,
+     538,
+     173,
+     50
+    ],
+    "quota-router-code": [
+     315,
+     202,
+     144,
+     50
+    ],
+    "session-id-hook": [
+     293,
+     90,
+     188,
+     50
+    ],
+    "test-quota-router": [
+     513,
+     90,
+     224,
+     50
+    ],
+    "codex-secrets": [
+     797,
+     538,
+     159,
+     50
+    ],
+    "codex-config": [
+     1017,
+     650,
+     159,
+     50
+    ],
+    "codex-router": [
+     326,
+     650,
+     122,
+     50
+    ],
+    "codex3": [
+     101,
+     762,
+     120,
+     50
+    ],
+    "codex2": [
+     327,
+     762,
+     120,
+     50
+    ],
+    "codex1": [
+     565,
+     762,
+     120,
+     50
+    ],
+    "state-codex": [
+     290,
+     874,
+     195,
+     50
+    ],
+    "login-codex": [
+     527,
+     202,
+     195,
+     50
+    ],
+    "reauth-codex": [
+     60,
+     90,
+     202,
+     50
+    ],
+    "chatgpt": [
+     565,
+     874,
+     120,
+     50
+    ],
+    "openai-auth": [
+     1024,
+     314,
+     144,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "codex-compose",
+     "label": "compose.codex.yaml",
+     "x": 46,
+     "y": 620,
+     "w": 705,
+     "h": 206
+    }
+   ],
+   "width": 1236,
+   "height": 984
+  },
+  "copilot": {
+   "dir": "TB",
+   "nodes": {
+    "client": [
+     504,
+     202,
+     120,
+     50
+    ],
+    "env-file": [
+     712,
+     202,
+     120,
+     50
+    ],
+    "host-gateway-file": [
+     887,
+     202,
+     224,
+     50
+    ],
+    "gateway-copilot-example": [
+     909,
+     90,
+     180,
+     50
+    ],
+    "gateway": [
+     504,
+     314,
+     120,
+     50
+    ],
+    "route-copilot": [
+     492,
+     426,
+     144,
+     50
+    ],
+    "copilot-config": [
+     686,
+     426,
+     173,
+     50
+    ],
+    "copilot-secrets": [
+     912,
+     426,
+     173,
+     50
+    ],
+    "device-guard": [
+     60,
+     426,
+     144,
+     50
+    ],
+    "copilot": [
+     72,
+     538,
+     120,
+     50
+    ],
+    "state-copilot": [
+     63,
+     650,
+     137,
+     50
+    ],
+    "login-copilot": [
+     232,
+     90,
+     210,
+     50
+    ],
+    "github-login": [
+     277,
+     202,
+     120,
+     50
+    ],
+    "github-api": [
+     268,
+     650,
+     137,
+     50
+    ],
+    "copilot-api": [
+     470,
+     650,
+     188,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "copilot-compose",
+     "label": "compose.copilot.yaml",
+     "x": 46,
+     "y": 396,
+     "w": 172,
+     "h": 206
+    }
+   ],
+   "width": 1171,
+   "height": 760
+  },
+  "decision": {
+   "dir": "TB",
+   "nodes": {
+    "client": [
+     784,
+     90,
+     120,
+     50
+    ],
+    "host-gateway-file": [
+     60,
+     90,
+     224,
+     50
+    ],
+    "host-override": [
+     67,
+     202,
+     210,
+     50
+    ],
+    "decision-routes-file": [
+     312,
+     202,
+     180,
+     50
+    ],
+    "decision-switch": [
+     520,
+     202,
+     202,
+     50
+    ],
+    "gateway": [
+     784,
+     202,
+     120,
+     50
+    ],
+    "decision-hook": [
+     89,
+     314,
+     166,
+     50
+    ],
+    "decision-service": [
+     527,
+     426,
+     188,
+     50
+    ],
+    "rule-image": [
+     107,
+     426,
+     129,
+     50
+    ],
+    "rule-timeout": [
+     85,
+     538,
+     173,
+     50
+    ],
+    "rule-confidence": [
+     92,
+     650,
+     159,
+     50
+    ],
+    "rule-routes": [
+     78,
+     762,
+     188,
+     50
+    ],
+    "rule-private": [
+     96,
+     874,
+     151,
+     50
+    ],
+    "model-image": [
+     538,
+     538,
+     166,
+     50
+    ],
+    "model-default": [
+     85,
+     986,
+     173,
+     50
+    ],
+    "model-route": [
+     342,
+     986,
+     120,
+     50
+    ],
+    "litellm-router": [
+     333,
+     1098,
+     137,
+     50
+    ],
+    "local-endpoint": [
+     333,
+     1210,
+     137,
+     50
+    ],
+    "decision-log": [
+     750,
+     426,
+     188,
+     50
+    ],
+    "pass-decision": [
+     561,
+     314,
+     120,
+     50
+    ],
+    "pass-public": [
+     779,
+     314,
+     129,
+     50
+    ],
+    "public-llm": [
+     966,
+     426,
+     144,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "rules",
+     "label": "Rules, in order",
+     "x": 46,
+     "y": 396,
+     "w": 252,
+     "h": 542
+    }
+   ],
+   "width": 1170,
+   "height": 1320
+  },
+  "release": {
+   "dir": "TB",
+   "nodes": {
+    "branch-topic": [
+     974,
+     90,
+     120,
+     50
+    ],
+    "remote-upstream": [
+     1145,
+     90,
+     120,
+     50
+    ],
+    "branch-local-dev": [
+     974,
+     202,
+     120,
+     50
+    ],
+    "remote-origin": [
+     1145,
+     314,
+     120,
+     50
+    ],
+    "git-hooks": [
+     75,
+     426,
+     120,
+     50
+    ],
+    "public-lists": [
+     743,
+     314,
+     180,
+     50
+    ],
+    "deny-lists": [
+     271,
+     426,
+     159,
+     50
+    ],
+    "promote-sh": [
+     951,
+     314,
+     166,
+     50
+    ],
+    "public-check": [
+     502,
+     426,
+     202,
+     50
+    ],
+    "scan-sh": [
+     63,
+     538,
+     144,
+     50
+    ],
+    "gitleaks": [
+     60,
+     650,
+     151,
+     50
+    ],
+    "branch-portable": [
+     974,
+     426,
+     120,
+     50
+    ],
+    "tag-portable": [
+     761,
+     426,
+     144,
+     50
+    ],
+    "remote-github": [
+     773,
+     538,
+     120,
+     50
+    ],
+    "ci": [
+     291,
+     90,
+     120,
+     50
+    ],
+    "check-prereqs": [
+     246,
+     202,
+     210,
+     50
+    ],
+    "build-sh": [
+     527,
+     538,
+     151,
+     50
+    ],
+    "base-image": [
+     491,
+     90,
+     224,
+     50
+    ],
+    "python-image": [
+     242,
+     650,
+     217,
+     50
+    ],
+    "dockerfile": [
+     543,
+     202,
+     120,
+     50
+    ],
+    "bake": [
+     531,
+     650,
+     144,
+     50
+    ],
+    "target-smoke": [
+     75,
+     762,
+     120,
+     50
+    ],
+    "target-gateway": [
+     60,
+     874,
+     151,
+     50
+    ],
+    "target-test": [
+     291,
+     762,
+     120,
+     50
+    ],
+    "target-release": [
+     291,
+     874,
+     120,
+     50
+    ],
+    "image-local": [
+     509,
+     314,
+     188,
+     50
+    ],
+    "image-tagged": [
+     60,
+     986,
+     151,
+     50
+    ],
+    "registry": [
+     239,
+     986,
+     224,
+     50
+    ],
+    "oci-archive": [
+     543,
+     986,
+     120,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "bake-targets",
+     "label": "Bake targets",
+     "x": 46,
+     "y": 732,
+     "w": 431,
+     "h": 206
+    }
+   ],
+   "width": 1325,
+   "height": 1096
+  },
+  "host-config": {
+   "dir": "LR",
+   "nodes": {
+    "env-example": [
+     100,
+     90,
+     122,
+     50
+    ],
+    "create-env": [
+     386,
+     90,
+     188,
+     50
+    ],
+    "compose-yaml": [
+     750,
+     90,
+     122,
+     50
+    ],
+    "compose-codex": [
+     728,
+     162,
+     166,
+     50
+    ],
+    "compose-copilot": [
+     721,
+     234,
+     180,
+     50
+    ],
+    "gateway-example": [
+     408,
+     162,
+     144,
+     50
+    ],
+    "copilot-yaml": [
+     724,
+     306,
+     173,
+     50
+    ],
+    "sync-local-models": [
+     89,
+     162,
+     144,
+     50
+    ],
+    "enable-codex": [
+     60,
+     234,
+     202,
+     50
+    ],
+    "enable-anthropic": [
+     89,
+     306,
+     144,
+     50
+    ],
+    "gateway-config-py": [
+     372,
+     234,
+     217,
+     50
+    ],
+    "diagram-source": [
+     60,
+     378,
+     202,
+     50
+    ],
+    "diagram-builder": [
+     390,
+     306,
+     180,
+     50
+    ],
+    "diagram-page": [
+     713,
+     378,
+     195,
+     50
+    ],
+    "env-file": [
+     751,
+     522,
+     120,
+     50
+    ],
+    "host-override": [
+     706,
+     738,
+     210,
+     50
+    ],
+    "host-gateway-file": [
+     699,
+     594,
+     224,
+     50
+    ],
+    "copilot-host": [
+     1033,
+     666,
+     224,
+     50
+    ],
+    "local-deny": [
+     60,
+     666,
+     202,
+     50
+    ],
+    "diagram-overlay": [
+     85,
+     738,
+     151,
+     50
+    ],
+    "diagram-private": [
+     710,
+     666,
+     202,
+     50
+    ],
+    "secrets-dir": [
+     751,
+     810,
+     120,
+     50
+    ],
+    "state-dir": [
+     751,
+     882,
+     120,
+     50
+    ],
+    "compose-cli": [
+     1076,
+     378,
+     137,
+     50
+    ],
+    "gateway": [
+     1367,
+     450,
+     120,
+     50
+    ],
+    "scan-sh": [
+     408,
+     1026,
+     144,
+     50
+    ]
+   },
+   "frames": [
+    {
+     "id": "tracked",
+     "label": "Tracked files",
+     "x": 46,
+     "y": 60,
+     "w": 891,
+     "h": 382
+    },
+    {
+     "id": "ignored",
+     "label": "Git ignores these files",
+     "x": 46,
+     "y": 492,
+     "w": 1225,
+     "h": 454
+    }
+   ],
+   "width": 1547,
+   "height": 1136
+  }
+ }
+}</script>
+<script>
+(function () {
+  'use strict';
+  var G = JSON.parse(document.getElementById('graph-data').textContent);
+  var NS = 'http://www.w3.org/2000/svg';
+  var $ = function (id) { return document.getElementById(id); };
+  var NODES = {}, GROUPS = {}, KINDS = {}, VIEWS = {}, TOURS = {};
+  G.nodes.forEach(function (n) { NODES[n.id] = n; });
+  G.groups.forEach(function (g) { GROUPS[g.id] = g; });
+  G.edge_kinds.forEach(function (k) { KINDS[k.id] = k; });
+  G.views.forEach(function (v) { VIEWS[v.id] = v; });
+  G.tours.forEach(function (t) { TOURS[t.id] = t; });
+  var S = { view: null, selected: null, tour: null, step: 0, path: null, query: '', hideGroups: {}, hideParts: {}, allLabels: false, cam: { x: 0, y: 0, k: 1 } };
+  var svg = $('canvas'), viewport = $('viewport'), tooltip = $('tooltip');
+  var nodeEls = {}, edgeEls = [], anim = null;
+
+  function el(tag, attrs, parent, ns) {
+    var e = ns === false ? document.createElement(tag) : document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function h(tag, text, parent, cls) {
+    var e = document.createElement(tag);
+    if (text !== undefined && text !== null) e.textContent = text;
+    if (cls) e.className = cls;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function clear(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+  function viewEdges(vid) { return G.edges.filter(function (e) { return e.views.indexOf(vid) >= 0; }); }
+  function visible(id) {
+    var n = NODES[id];
+    return !S.hideGroups[n.group] && !S.hideParts[n.part];
+  }
+
+  // Header, legend, filters and view buttons.
+  $('title').textContent = G.title;
+  $('edition').textContent = G.edition.name;
+  if (G.edition.banner) { $('banner').textContent = G.edition.banner; $('banner').hidden = false; }
+  document.title = G.title + (G.edition.name ? ' (' + G.edition.name + ')' : '');
+  G.views.forEach(function (v) {
+    var b = h('button', null, $('views'));
+    b.type = 'button';
+    h('span', v.name, b);
+    h('span', v.nodes.length + ' nodes', b, 'count');
+    b.dataset.view = v.id;
+    b.addEventListener('click', function () { switchView(v.id); });
+  });
+  var used = {};
+  G.nodes.forEach(function (n) { used[n.group] = true; });
+  G.groups.filter(function (g) { return used[g.id]; }).forEach(function (g) {
+    var l = h('label', null, $('filter-groups'));
+    var c = h('input', null, l); c.type = 'checkbox'; c.checked = true;
+    c.addEventListener('change', function () { S.hideGroups[g.id] = !c.checked; applyVisibility(); });
+    var sw = h('span', null, l, 'swatch'); sw.style.background = g.color;
+    h('span', g.label, l);
+  });
+  [['core', 'Core part (solid border)'], ['option', 'Option (dashed border)']].forEach(function (p) {
+    var l = h('label', null, $('filter-parts'));
+    var c = h('input', null, l); c.type = 'checkbox'; c.checked = true;
+    c.addEventListener('change', function () { S.hideParts[p[0]] = !c.checked; applyVisibility(); });
+    h('span', p[1], l);
+  });
+  (function legend() {
+    var box = $('legend');
+    [['core', 'Core part: solid border'], ['option', 'Option: dashed border']].forEach(function (p) {
+      var row = h('div', null, box, 'legend-row');
+      var s = el('svg', { width: 34, height: 18 }, row);
+      el('rect', { x: 1, y: 2, width: 32, height: 14, rx: 4, fill: '#161d29', stroke: '#c0caf5', 'stroke-width': 1.6, 'stroke-dasharray': p[0] === 'option' ? '6 4' : 'none' }, s);
+      h('span', p[1], row);
+    });
+    G.edge_kinds.forEach(function (k) {
+      var row = h('div', null, box, 'legend-row');
+      var s = el('svg', { width: 34, height: 12 }, row);
+      el('line', { x1: 1, y1: 6, x2: 33, y2: 6, stroke: k.color, 'stroke-width': 2.2 }, s);
+      h('span', k.label, row);
+    });
+    var row = h('div', null, box, 'legend-row');
+    var s = el('svg', { width: 34, height: 12 }, row);
+    el('line', { x1: 1, y1: 6, x2: 33, y2: 6, stroke: '#c0caf5', 'stroke-width': 2, 'stroke-dasharray': '6 5' }, s);
+    h('span', 'An edge to an option is dashed', row);
+  })();
+  var defs = $('defs');
+  G.edge_kinds.forEach(function (k) {
+    var m = el('marker', { id: 'arrow-' + k.id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: k.color }, m);
+  });
+  G.tours.forEach(function (t) {
+    var o = h('option', t.name + ' (' + VIEWS[t.view].name + ')', $('tour-select'));
+    o.value = t.id;
+  });
+
+  // Geometry: a cubic curve from a side of the source to a side of the target.
+  function edgeGeom(a, b, dir) {
+    var ax, ay, bx, by, c1x, c1y, c2x, c2y, d;
+    if (dir === 'TB') {
+      ax = a[0] + a[2] / 2; bx = b[0] + b[2] / 2;
+      if (b[1] >= a[1] + a[3]) { ay = a[1] + a[3]; by = b[1]; d = Math.max(30, (by - ay) / 2); c1y = ay + d; c2y = by - d; }
+      else if (b[1] + b[3] <= a[1]) { ay = a[1]; by = b[1] + b[3]; d = Math.max(30, (ay - by) / 2); c1y = ay - d; c2y = by + d; }
+      else { ay = a[1] + a[3]; by = b[1] + b[3]; d = 36 + Math.abs(bx - ax) * 0.18; c1y = ay + d; c2y = by + d; }
+      c1x = ax; c2x = bx;
+    } else {
+      ay = a[1] + a[3] / 2; by = b[1] + b[3] / 2;
+      if (b[0] >= a[0] + a[2]) { ax = a[0] + a[2]; bx = b[0]; d = Math.max(36, (bx - ax) / 2); c1x = ax + d; c2x = bx - d; }
+      else if (b[0] + b[2] <= a[0]) { ax = a[0]; bx = b[0] + b[2]; d = Math.max(36, (ax - bx) / 2); c1x = ax - d; c2x = bx + d; }
+      else { ax = a[0] + a[2]; bx = b[0] + b[2]; d = 40 + Math.abs(by - ay) * 0.22; c1x = ax + d; c2x = bx + d; }
+      c1y = ay; c2y = by;
+    }
+    return { d: 'M' + ax + ',' + ay + ' C' + c1x + ',' + c1y + ' ' + c2x + ',' + c2y + ' ' + bx + ',' + by,
+             mx: (ax + 3 * c1x + 3 * c2x + bx) / 8, my: (ay + 3 * c1y + 3 * c2y + by) / 8 };
+  }
+
+  // Render one view.
+  function render() {
+    var lay = G.layout[S.view], v = VIEWS[S.view];
+    ['frames', 'edges', 'nodes', 'elabels'].forEach(function (id) { clear($(id)); });
+    nodeEls = {}; edgeEls = [];
+    lay.frames.forEach(function (f) {
+      var g = el('g', { class: 'frame' }, $('frames'));
+      el('rect', { x: f.x, y: f.y, width: f.w, height: f.h, rx: 12 }, g);
+      var t = el('text', { x: f.x + 12, y: f.y + 19 }, g); t.textContent = f.label;
+    });
+    viewEdges(S.view).forEach(function (e) {
+      var geo = edgeGeom(lay.nodes[e.from], lay.nodes[e.to], lay.dir), k = KINDS[e.kind];
+      var p = el('path', { d: geo.d, class: 'edge ' + e.part, stroke: k.color, 'marker-end': 'url(#arrow-' + k.id + ')' }, $('edges'));
+      var hit = el('path', { d: geo.d, class: 'edge-hit' }, $('edges'));
+      var t = el('text', { x: geo.mx, y: geo.my - 5, 'text-anchor': 'middle', class: 'elabel' }, $('elabels'));
+      t.textContent = e.label;
+      var rec = { e: e, path: p, hit: hit, label: t };
+      hit.addEventListener('pointerenter', function (ev) { showTip(ev, NODES[e.from].label + ' → ' + NODES[e.to].label, e.label + ' (' + k.label + ')'); t.classList.add('show'); });
+      hit.addEventListener('pointermove', moveTip);
+      hit.addEventListener('pointerleave', function () { hideTip(); applyHighlight(); });
+      edgeEls.push(rec);
+    });
+    v.nodes.forEach(function (id) {
+      var n = NODES[id], b = lay.nodes[id], g = GROUPS[n.group];
+      var e = el('g', { class: 'node ' + n.part, transform: 'translate(' + b[0] + ',' + b[1] + ')', tabindex: 0, role: 'button', 'aria-label': n.label + ', ' + g.label + ', ' + n.part }, $('nodes'));
+      e.dataset.id = id;
+      el('rect', { class: 'box', width: b[2], height: b[3], rx: 9, stroke: g.color }, e);
+      el('circle', { cx: 16, cy: b[3] / 2, r: 5, fill: g.color }, e);
+      n.lines.forEach(function (line, i) {
+        var t = el('text', { class: 'label', x: 28, y: n.lines.length === 1 ? 29 : 22 + i * 15 }, e); t.textContent = line;
+      });
+      e.addEventListener('pointerenter', function (ev) { showTip(ev, n.label, g.label + ' · ' + n.part); });
+      e.addEventListener('pointermove', moveTip);
+      e.addEventListener('pointerleave', hideTip);
+      e.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(id); } });
+      nodeEls[id] = e;
+    });
+    $('view-name').textContent = v.name;
+    $('view-text').textContent = v.text;
+    Array.prototype.forEach.call($('views').children, function (b) { b.setAttribute('aria-current', b.dataset.view === S.view ? 'true' : 'false'); });
+    fillPathSelects();
+    applyVisibility();
+  }
+
+  function applyVisibility() {
+    Object.keys(nodeEls).forEach(function (id) { nodeEls[id].classList.toggle('hidden', !visible(id)); });
+    edgeEls.forEach(function (r) {
+      var hide = !visible(r.e.from) || !visible(r.e.to);
+      [r.path, r.hit, r.label].forEach(function (x) { x.classList.toggle('hidden', hide); });
+    });
+    if (S.selected && !visible(S.selected)) S.selected = null;
+    applyHighlight();
+    renderDetail();
+  }
+
+  // Highlight: selection, then path, then tour step, then search.
+  function focusSets() {
+    var nodes = null, edges = null;
+    if (S.selected) {
+      nodes = {}; edges = {}; nodes[S.selected] = true;
+      edgeEls.forEach(function (r, i) {
+        if (r.e.from === S.selected || r.e.to === S.selected) { edges[i] = true; nodes[r.e.from] = true; nodes[r.e.to] = true; }
+      });
+    } else if (S.path) {
+      nodes = {}; edges = {};
+      S.path.nodes.forEach(function (id) { nodes[id] = true; });
+      edgeEls.forEach(function (r, i) { if (S.path.edges.indexOf(r.e) >= 0) edges[i] = true; });
+    } else if (S.tour) {
+      nodes = {}; edges = {};
+      TOURS[S.tour].steps[S.step].nodes.forEach(function (id) { nodes[id] = true; });
+      edgeEls.forEach(function (r, i) { if (nodes[r.e.from] && nodes[r.e.to]) edges[i] = true; });
+    } else if (S.query) {
+      nodes = {}; edges = {};
+      Object.keys(nodeEls).forEach(function (id) { if (matches(NODES[id], S.query)) nodes[id] = true; });
+    }
+    return { nodes: nodes, edges: edges };
+  }
+  function applyHighlight() {
+    var f = focusSets(), tourNodes = {};
+    if (S.tour && !S.selected && !S.path) TOURS[S.tour].steps[S.step].nodes.forEach(function (id) { tourNodes[id] = true; });
+    Object.keys(nodeEls).forEach(function (id) {
+      var c = nodeEls[id].classList;
+      c.toggle('dim', !!f.nodes && !f.nodes[id]);
+      c.toggle('focus', !!f.nodes && !!f.nodes[id]);
+      c.toggle('sel', S.selected === id);
+      c.toggle('tour', !!tourNodes[id]);
+      c.toggle('match', !!S.query && !S.selected && matches(NODES[id], S.query));
+    });
+    edgeEls.forEach(function (r, i) {
+      var on = !!f.edges && !!f.edges[i];
+      r.path.classList.toggle('dim', !!f.nodes && !on);
+      r.path.classList.toggle('focus', on);
+      r.label.classList.toggle('show', S.allLabels || on);
+    });
+  }
+  function matches(n, q) { return (n.label + ' ' + n.summary + ' ' + n.id).toLowerCase().indexOf(q) >= 0; }
+
+  // Detail panel.
+  function nodeButton(id, parent, suffix) {
+    var li = h('li', null, parent), b = h('button', NODES[id].label, li);
+    b.type = 'button';
+    b.addEventListener('click', function () { goTo(id); });
+    if (suffix) h('span', ' ' + suffix, li, 'note');
+  }
+  function sourceList(list, parent) {
+    var ul = h('ul', null, parent);
+    list.forEach(function (s) {
+      var li = h('li', null, ul);
+      if (s.href) { var a = h('a', s.text, li); a.href = s.href; } else h('code', s.text, li);
+    });
+  }
+  function renderDetail() {
+    var box = $('detail'); clear(box);
+    if (!S.selected) {
+      var v = VIEWS[S.view];
+      h('h2', 'This view', box);
+      h('h3', v.name, box);
+      h('p', v.text, box, 'summary');
+      h('p', 'Select a node to see its summary, its sources and its edges. A node that a filter hides is not shown.', box, 'note');
+      h('h2', 'Sources of this view', box);
+      sourceList(v.sources, box);
+      h('h2', 'Count', box);
+      h('p', v.nodes.length + ' nodes, ' + viewEdges(S.view).length + ' edges, ' + v.frames.length + ' frames.', box);
+      return;
+    }
+    var n = NODES[S.selected], g = GROUPS[n.group];
+    h('h2', 'Node', box);
+    h('h3', n.label, box);
+    var chips = h('div', null, box, 'chips');
+    var c = h('span', g.label, chips, 'chip'); c.style.borderColor = g.color; c.style.color = g.color;
+    h('span', n.part === 'core' ? 'core part' : 'option', chips, 'chip');
+    h('p', n.summary, box, 'summary');
+    if (n.facts.length) {
+      var table = h('table', null, box);
+      n.facts.forEach(function (f) { var tr = h('tr', null, table); h('td', f[0], tr); h('td', f[1], tr); });
+    }
+    h('h2', 'Views', box);
+    var vc = h('div', null, box, 'chips');
+    n.views.forEach(function (vid) {
+      var b = h('button', VIEWS[vid].name, vc, 'chip'); b.type = 'button';
+      if (vid === S.view) b.setAttribute('aria-current', 'true');
+      b.addEventListener('click', function () { switchView(vid, { keep: S.selected }); });
+    });
+    h('h2', 'Sources', box);
+    sourceList(n.sources, box);
+    var outs = G.edges.filter(function (e) { return e.from === n.id; });
+    var ins = G.edges.filter(function (e) { return e.to === n.id; });
+    h('h2', 'Edges out (' + outs.length + ')', box);
+    var ul = h('ul', null, box);
+    outs.forEach(function (e) { nodeButton(e.to, ul, '— ' + e.label + (e.views.indexOf(S.view) < 0 ? ' (other view)' : '')); });
+    h('h2', 'Edges in (' + ins.length + ')', box);
+    ul = h('ul', null, box);
+    ins.forEach(function (e) { nodeButton(e.from, ul, '— ' + e.label + (e.views.indexOf(S.view) < 0 ? ' (other view)' : '')); });
+  }
+
+  // Selection, views and camera.
+  function select(id) {
+    S.selected = id;
+    applyHighlight(); renderDetail(); setHash();
+  }
+  function goTo(id) {
+    if (VIEWS[S.view].nodes.indexOf(id) < 0) switchView(NODES[id].views[0], { keep: id });
+    if (!visible(id)) return;
+    select(id);
+    var b = G.layout[S.view].nodes[id];
+    fitBox(b[0] - 220, b[1] - 160, b[2] + 440, b[3] + 320, true);
+  }
+  function switchView(vid, opts) {
+    opts = opts || {};
+    if (S.tour && TOURS[S.tour].view !== vid && !opts.tour) endTour();
+    S.view = vid; S.path = null;
+    S.selected = opts.keep && VIEWS[vid].nodes.indexOf(opts.keep) >= 0 ? opts.keep : null;
+    $('path-status').textContent = ''; clear($('path-steps'));
+    render();
+    if (!S.tour) { var t = G.tours.filter(function (x) { return x.view === vid; })[0]; if (t) $('tour-select').value = t.id; }
+    if (!opts.noFit) fitAll(false);
+    setHash();
+  }
+  function setCam(x, y, k) { S.cam = { x: x, y: y, k: k }; viewport.setAttribute('transform', 'translate(' + x + ',' + y + ') scale(' + k + ')'); }
+  function fitBox(x, y, w, hgt, animate, maxK) {
+    var W = svg.clientWidth || 800, H = svg.clientHeight || 600;
+    var k = Math.min(W / w, H / hgt, maxK || 1.5); k = Math.max(0.12, k);
+    var tx = W / 2 - (x + w / 2) * k, ty = H / 2 - (y + hgt / 2) * k;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!animate || reduce) { setCam(tx, ty, k); return; }
+    var from = S.cam, t0 = null;
+    if (anim) cancelAnimationFrame(anim);
+    function stepFn(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / 320), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      setCam(from.x + (tx - from.x) * e, from.y + (ty - from.y) * e, from.k + (k - from.k) * e);
+      anim = p < 1 ? requestAnimationFrame(stepFn) : null;
+    }
+    anim = requestAnimationFrame(stepFn);
+  }
+  function fitAll(animate) { var l = G.layout[S.view]; fitBox(0, 0, l.width, l.height, animate, 1.2); }
+  function fitNodes(ids, animate) {
+    var l = G.layout[S.view].nodes, x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    ids.forEach(function (id) { var b = l[id]; x1 = Math.min(x1, b[0]); y1 = Math.min(y1, b[1]); x2 = Math.max(x2, b[0] + b[2]); y2 = Math.max(y2, b[1] + b[3]); });
+    fitBox(x1 - 140, y1 - 110, x2 - x1 + 280, y2 - y1 + 220, animate, 1.25);
+  }
+  function zoomAt(f, cx, cy) {
+    var k = Math.max(0.12, Math.min(3, S.cam.k * f)); f = k / S.cam.k;
+    setCam(cx - (cx - S.cam.x) * f, cy - (cy - S.cam.y) * f, k);
+  }
+  function setHash() {
+    var hash = '#view=' + S.view + (S.selected ? '&node=' + S.selected : '');
+    try { history.replaceState(null, '', hash); } catch (err) { /* file:// can refuse; the page still works */ }
+  }
+
+  // Pan, zoom and click.
+  var drag = null;
+  svg.addEventListener('pointerdown', function (ev) {
+    if (ev.button !== 0) return;
+    drag = { x: ev.clientX, y: ev.clientY, cx: S.cam.x, cy: S.cam.y, moved: false, node: ev.target.closest ? ev.target.closest('.node') : null };
+    svg.setPointerCapture(ev.pointerId);
+  });
+  svg.addEventListener('pointermove', function (ev) {
+    if (!drag) return;
+    var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; svg.classList.add('panning'); hideTip(); }
+    if (drag.moved) setCam(drag.cx + dx, drag.cy + dy, S.cam.k);
+  });
+  svg.addEventListener('pointerup', function () {
+    if (drag && !drag.moved) {
+      if (drag.node) select(drag.node.dataset.id);
+      else if (S.selected) select(null);
+    }
+    drag = null; svg.classList.remove('panning');
+  });
+  svg.addEventListener('wheel', function (ev) {
+    ev.preventDefault();
+    var r = svg.getBoundingClientRect();
+    zoomAt(Math.exp(-ev.deltaY * 0.0015), ev.clientX - r.left, ev.clientY - r.top);
+  }, { passive: false });
+  $('zoom-in').addEventListener('click', function () { zoomAt(1.25, svg.clientWidth / 2, svg.clientHeight / 2); });
+  $('zoom-out').addEventListener('click', function () { zoomAt(0.8, svg.clientWidth / 2, svg.clientHeight / 2); });
+  $('zoom-fit').addEventListener('click', function () { fitAll(true); });
+  $('all-labels').addEventListener('change', function (ev) { S.allLabels = ev.target.checked; applyHighlight(); });
+
+  // Tooltip.
+  function showTip(ev, title, sub) {
+    if (drag && drag.moved) return;
+    clear(tooltip); h('div', title, tooltip, 't'); h('div', sub, tooltip, 's');
+    tooltip.hidden = false; moveTip(ev);
+  }
+  function moveTip(ev) { tooltip.style.left = (ev.clientX + 14) + 'px'; tooltip.style.top = (ev.clientY + 14) + 'px'; }
+  function hideTip() { tooltip.hidden = true; }
+
+  // Search.
+  $('search').addEventListener('input', function (ev) {
+    S.query = ev.target.value.trim().toLowerCase();
+    var box = $('results'); clear(box);
+    if (S.query) {
+      var hits = G.nodes.filter(function (n) { return matches(n, S.query); }).slice(0, 40);
+      if (!hits.length) h('li', 'No node matches.', box, 'note');
+      hits.forEach(function (n) {
+        var li = h('li', null, box), b = h('button', n.label, li); b.type = 'button';
+        h('span', n.views.map(function (v) { return VIEWS[v].name; }).join(', '), b, 'where');
+        b.addEventListener('click', function () { goTo(n.id); });
+      });
+    }
+    applyHighlight();
+  });
+
+  // Path finder.
+  function fillPathSelects() {
+    var ids = VIEWS[S.view].nodes.slice().sort(function (a, b) { return NODES[a].label.localeCompare(NODES[b].label); });
+    ['path-from', 'path-to'].forEach(function (sid, i) {
+      var s = $(sid); clear(s);
+      ids.forEach(function (id) { var o = h('option', NODES[id].label, s); o.value = id; });
+      s.selectedIndex = i === 0 ? 0 : ids.length - 1;
+    });
+  }
+  function shortest(from, to, directed) {
+    var edges = viewEdges(S.view).filter(function (e) { return visible(e.from) && visible(e.to); });
+    var prev = {}, queue = [from]; prev[from] = null;
+    while (queue.length) {
+      var cur = queue.shift();
+      if (cur === to) break;
+      edges.forEach(function (e) {
+        var next = e.from === cur ? e.to : (!directed && e.to === cur ? e.from : null);
+        if (next && !(next in prev)) { prev[next] = { node: cur, edge: e }; queue.push(next); }
+      });
+    }
+    if (!(to in prev)) return null;
+    var nodes = [to], list = [];
+    for (var at = to; prev[at]; at = prev[at].node) { nodes.unshift(prev[at].node); list.unshift(prev[at].edge); }
+    return { nodes: nodes, edges: list, directed: directed };
+  }
+  $('path-go').addEventListener('click', function () {
+    var a = $('path-from').value, b = $('path-to').value, status = $('path-status'), ol = $('path-steps');
+    clear(ol); S.selected = null;
+    if (a === b) { S.path = null; status.textContent = 'Select two different nodes.'; applyHighlight(); renderDetail(); return; }
+    var p = shortest(a, b, true) || shortest(a, b, false);
+    S.path = p;
+    if (!p) status.textContent = 'No path between these nodes in this view.';
+    else {
+      status.textContent = 'Shortest path: ' + p.edges.length + ' steps.' + (p.directed ? '' : ' No directed path exists, so this path ignores the edge direction.');
+      p.edges.forEach(function (e, i) {
+        var li = h('li', null, ol), here = p.nodes[i], there = p.nodes[i + 1];
+        var b1 = h('button', NODES[here].label, li); b1.type = 'button'; b1.addEventListener('click', function () { goTo(here); });
+        h('span', e.from === here ? ' → ' : ' ← ', li);
+        var b2 = h('button', NODES[there].label, li); b2.type = 'button'; b2.addEventListener('click', function () { goTo(there); });
+        h('span', ' (' + e.label + ')', li, 'note');
+      });
+      fitNodes(p.nodes, true);
+    }
+    applyHighlight(); renderDetail();
+  });
+  $('path-clear').addEventListener('click', function () { S.path = null; $('path-status').textContent = ''; clear($('path-steps')); applyHighlight(); });
+
+  // Tours.
+  function showStep() {
+    var t = TOURS[S.tour], st = t.steps[S.step];
+    $('tour-step').textContent = 'Step ' + (S.step + 1) + ' of ' + t.steps.length;
+    $('tour-text').textContent = st.text;
+    $('tour-prev').disabled = S.step === 0;
+    $('tour-next').disabled = S.step === t.steps.length - 1;
+    S.selected = null; S.path = null;
+    applyHighlight(); renderDetail();
+    fitNodes(st.nodes.filter(visible).length ? st.nodes.filter(visible) : st.nodes, true);
+  }
+  function startTour(tid) {
+    var t = TOURS[tid];
+    S.tour = tid; S.step = 0;
+    if (S.view !== t.view) switchView(t.view, { tour: true, noFit: true });
+    $('tour-select').value = tid;
+    showStep();
+  }
+  function endTour() {
+    S.tour = null; $('tour-step').textContent = ''; $('tour-text').textContent = '';
+    $('tour-prev').disabled = true; $('tour-next').disabled = true;
+    applyHighlight();
+  }
+  function moveStep(d) {
+    if (!S.tour) { startTour($('tour-select').value); return; }
+    var n = S.step + d;
+    if (n < 0 || n >= TOURS[S.tour].steps.length) return;
+    S.step = n; showStep();
+  }
+  $('tour-start').addEventListener('click', function () { startTour($('tour-select').value); });
+  $('tour-prev').addEventListener('click', function () { moveStep(-1); });
+  $('tour-next').addEventListener('click', function () { moveStep(1); });
+  $('tour-end').addEventListener('click', endTour);
+  $('tour-select').addEventListener('change', function () { if (S.tour) startTour($('tour-select').value); });
+
+  // Keyboard.
+  document.addEventListener('keydown', function (ev) {
+    var tag = (ev.target.tagName || '').toLowerCase();
+    if (ev.key === 'Escape') {
+      if (S.selected || S.path) { S.selected = null; S.path = null; $('path-status').textContent = ''; clear($('path-steps')); applyHighlight(); renderDetail(); setHash(); }
+      else if (S.tour) endTour();
+      else if (S.query) { $('search').value = ''; S.query = ''; clear($('results')); applyHighlight(); }
+      return;
+    }
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') { ev.preventDefault(); moveStep(1); }
+    if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') { ev.preventDefault(); if (S.tour) moveStep(-1); }
+  });
+  window.addEventListener('resize', function () { if (!S.tour && !S.selected) fitAll(false); });
+
+  // Start.
+  var params = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) params[p[0]] = decodeURIComponent(p[1] || ''); });
+  var start = VIEWS[params.view] ? params.view : G.views[0].id;
+  endTour();
+  switchView(start);
+  if (params.node && NODES[params.node] && VIEWS[start].nodes.indexOf(params.node) >= 0) goTo(params.node);
+  window.architecturePage = { state: S, switchView: switchView, startTour: startTour, moveStep: moveStep, select: select, goTo: goTo };
+})();
+</script>
+</body>
+</html>

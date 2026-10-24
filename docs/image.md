@@ -52,13 +52,13 @@ The entry point (`docker/prod_entrypoint.sh`) and the command of the base image 
 Gateway, with the usual LiteLLM arguments:
 
 ```
-docker run ... litellm-gateway:1.103.0-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
+docker run ... litellm-gateway:1.106.2-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
 ```
 
 Router (Compose: `entrypoint: ["python", "-m", "uvicorn"]`):
 
 ```
-docker run ... --entrypoint python litellm-gateway:1.103.0-p0.1.0 \
+docker run ... --entrypoint python litellm-gateway:1.106.2-p0.1.0 \
   -m uvicorn quota_router:app --app-dir /opt/litellm-gateway/image/routers --host 0.0.0.0 --port 4000
 ```
 
@@ -128,7 +128,10 @@ reports cost 0.0 after a reload of the cost map. The request still returns 200.
 `config/gateway.codex.example.yaml` has the prices in `model_info` of `codex1/gpt-6-luna` and `codex1/gpt-6-sol`.
 A host file without these two `model_info` blocks must not schedule or trigger `/reload/model_cost_map`.
 
-Tested in isolation with LiteLLM 1.103.0 and 1.101.0.
+Tested in isolation with LiteLLM 1.106.2, 1.103.0 and 1.101.0.
+The 1.106.2 upgrade passes 217 tests and 433 subtests; six tests skip.
+The account hook supports the changed parameter forwarding and request safety signature.
+Not verified: the upstream image signature; cosign is not installed on the upgrade host.
 
 ## Build
 
@@ -178,10 +181,10 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | --- | --- | --- |
 | `REGISTRY` | empty | registry part of the tag |
 | `IMAGE_NAME` | `litellm-gateway` | image name |
-| `LITELLM_VERSION` | `1.103.0` | tag and label; change with `BASE_IMAGE` |
+| `LITELLM_VERSION` | `1.106.2` | tag and label; change with `BASE_IMAGE` |
 | `PORTABLE_VERSION` | `X.Y.Z` of the `portable-vX.Y.Z` tag | tag and label |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | image tag |
-| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:bd089afd…` | upstream image; a mirror of the same digest is permitted |
+| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:7294b90f…` | upstream image; a mirror of the same digest is permitted |
 | `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | only for pytest in the `test` target |
 | `PIP_INDEX_URL` | `https://pypi.org/simple` | package index of the `test` target; a mirror is permitted |
 | `PIP_CA_FILE` | empty | `scripts/build.sh` only: CA bundle for the package index, given as the BuildKit secret `pip-ca` |
@@ -190,7 +193,7 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | `SOURCE_DATE_EPOCH` | commit time | file times and `created` label |
 
 Tag format: `<registry>/litellm-gateway:<litellm version>-p<portable version>`,
-for example `ghcr.io/owner/litellm-gateway:1.103.0-p0.1.0` for the tag `portable-v0.1.0`.
+for example `ghcr.io/owner/litellm-gateway:1.106.2-p0.1.0` for the tag `portable-v0.1.0`.
 Without a `portable-vX.Y.Z` tag at HEAD, the portable version is the `git describe` form,
 for example `0.1.0-3-gabc1234`, or `0-gabc1234` when no such tag exists.
 

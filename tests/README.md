@@ -22,14 +22,14 @@ docker run --rm -v /tmp/litellm-pytest:/pt python:3.13-slim-bookworm \
 
 Run the commands from the repository root.
 
-## LiteLLM 1.103.0 (pinned in `Dockerfile` and `docker-bake.hcl`)
+## LiteLLM 1.106.2 (pinned in `Dockerfile` and `docker-bake.hcl`)
 
 ```
 docker run --rm --network none --entrypoint python \
   -v "$PWD":/w:ro -v /tmp/litellm-pytest:/pt:ro \
   -e PYTHONPATH=/pt:/w/image/hooks -e PYTHONDONTWRITEBYTECODE=1 \
   -e LITELLM_LOCAL_MODEL_COST_MAP=True -w /w \
-  ghcr.io/berriai/litellm@sha256:bd089afdcd35b894b14a93f9743cdc8b591f82da1a38dd43a010a7b0c9de5fd7 \
+  ghcr.io/berriai/litellm@sha256:7294b90f868c5c38c99b83021c7ba46f9b439e95f8e32964c925c7d2563a03f7 \
   -m pytest -p no:cacheprovider -q tests
 ```
 

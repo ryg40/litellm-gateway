@@ -6,7 +6,7 @@ version only when the tests pass.
 """
 from importlib.metadata import version
 
-TESTED_VERSIONS = ("1.101.0", "1.103.0")
+TESTED_VERSIONS = ("1.101.0", "1.103.0", "1.106.2")
 
 
 def untested():
