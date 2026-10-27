@@ -70,7 +70,7 @@ def main(argv=()):
     gateway_config.save(ROOT, path, config)
     print(f"Routes for {accounts} accounts written.")
     print("Run docker compose -f compose.yaml -f compose.codex.yaml up -d --force-recreate")
-    print("Test codex-auto/luna, sol, and astra through the public endpoint.")
+    print("Test codex-auto/luna, sol, astra, and terra through the public endpoint.")
 
 
 if __name__ == "__main__":

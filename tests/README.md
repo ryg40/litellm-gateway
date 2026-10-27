@@ -22,14 +22,14 @@ docker run --rm -v /tmp/litellm-pytest:/pt python:3.13-slim-bookworm \
 
 Run the commands from the repository root.
 
-## LiteLLM 1.106.2 (pinned in `Dockerfile` and `docker-bake.hcl`)
+## LiteLLM 1.106.4 (pinned in `Dockerfile` and `docker-bake.hcl`)
 
 ```
 docker run --rm --network none --entrypoint python \
   -v "$PWD":/w:ro -v /tmp/litellm-pytest:/pt:ro \
   -e PYTHONPATH=/pt:/w/image/hooks -e PYTHONDONTWRITEBYTECODE=1 \
   -e LITELLM_LOCAL_MODEL_COST_MAP=True -w /w \
-  ghcr.io/berriai/litellm@sha256:7294b90f868c5c38c99b83021c7ba46f9b439e95f8e32964c925c7d2563a03f7 \
+  ghcr.io/berriai/litellm@sha256:c169fb3adc514fcf210377c203f3de406d54f10bfdacf13948a4a839db9af7de \
   -m pytest -p no:cacheprovider -q tests
 ```
 
@@ -167,3 +167,18 @@ A stable id does not transfer a cache between accounts. Recovery can preempt a l
 
 The package index of the `test` target is `PIP_INDEX_URL`, and `PIP_CA_FILE`
 gives a CA bundle for it (`docs/ci.md`).
+
+## Daily updater
+
+`tests/test_update_upstream.py` uses temporary Git repositories and fake release, image, and Forgejo responses.
+It checks stable version selection, digest/platform validation, pin consistency, private-only publication,
+exact branch pushes, duplicate requests, pagination, and recovery after a lost create response.
+It uses no token or network. Run it on the host, because the gateway test image has no Git.
+
+```sh
+python3 -m unittest discover -s tests -p test_update_upstream.py
+```
+
+`sh scripts/ci-check.sh` runs these tests and the complete CI checks.
+It needs the tools installed by `scripts/install-ci-tools.sh` and a Docker daemon.
+It builds a unique temporary image tag and never changes a running service.

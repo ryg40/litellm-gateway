@@ -1,7 +1,7 @@
 # LiteLLM gateway
 
 This repo builds and runs an OpenAI-compatible gateway with LiteLLM.
-The gateway image is a local build on the LiteLLM 1.103.0 image, pinned by index digest.
+The gateway image is a local build on the LiteLLM 1.106.4 image, pinned by index digest.
 The image adds the hooks and routers of this repo (`image/hooks/`, `image/routers/`).
 The stack has two services: `gateway` and a Postgres `database`.
 Two sets of optional services are off by default: Codex account services in `compose.codex.yaml`
@@ -83,7 +83,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 ## Branches
 
 - `upstream` is upstream LiteLLM. It is fetch only.
-- `local-dev` is the private integration branch of a host. It never goes to a shared remote.
+- `local-dev` is the private integration branch and the default on private `origin`. It never goes to a public remote.
 - `topic/*` branches hold one change each and merge into `local-dev`.
 - `portable` has no shared history with `local-dev`. Each promotion is one snapshot commit.
 - Tags `portable-v*` mark releases of `portable`. Images build from these tags.

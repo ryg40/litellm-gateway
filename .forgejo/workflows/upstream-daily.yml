@@ -1,0 +1,35 @@
+name: Daily LiteLLM upstream check
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [local-dev]
+concurrency:
+  group: litellm-upstream-daily
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: litellm-ci
+    timeout-minutes: 90
+    container:
+      image: node:24-bookworm@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a
+    steps:
+      - name: Check out the private integration branch
+        uses: https://github.com/actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: local-dev
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checked CI tools
+        run: sh scripts/install-ci-tools.sh
+      - name: Prepare a stable upstream image update
+        run: python3 scripts/update-upstream.py prepare
+      - name: Check the candidate
+        run: sh scripts/ci-check.sh
+      - name: Open a private update pull request
+        env:
+          CI_SERVER_URL: ${{ github.server_url }}
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_TOKEN: ${{ github.token }}
+        run: python3 scripts/update-upstream.py publish

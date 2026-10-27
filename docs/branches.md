@@ -1,7 +1,8 @@
 # Branches, tags and remotes
 
 `local-dev` keeps the development history. `portable` publishes an exact copy of its files without that history.
-Only `portable` and its release tags go to a shared Git server.
+Only `portable` and its release tags go to a public Git server.
+The private `origin` also receives `local-dev` and `automation/litellm-v*` branches for CI.
 
 ## Remotes
 
@@ -23,8 +24,9 @@ The plan prints a scheme, host and URL digest, not the URL path.
 
 | Branch | Content | Rule |
 | --- | --- | --- |
-| `local-dev` | Private integration history. | Never push it to a shared Git server. |
+| `local-dev` | Private integration history; default branch on private `origin`. | Push only to the private integration server. |
 | `topic/*` | One change. | Start at `local-dev`, then integrate after review. |
+| `automation/litellm-v*` | A tested upstream image update. | Private `origin` only; merge after review. |
 | `portable` | Snapshot commits with the files of `local-dev`. | Shares no development history. |
 
 By default, a snapshot has the previous `portable` commit as its only parent.
@@ -160,6 +162,7 @@ Old personal identities or old wording can stop that check. Fix the publication 
 | `portable-v0.4.0` | `cc0ccf07` | 2026-10-07 | Mac runtime on Podman, Node 24 as a hard requirement, `scripts/check-prereqs.sh` |
 | `portable-v0.4.1` | `4d1aefc2` | 2026-10-07 | `EXPLAINER.md` with OKF v0.2 frontmatter, terms, portable differences and a reference section |
 | `portable-v0.5.0` | `dff7fa0f` | 2026-10-12 | the automatic Codex routes prefer `codex3`, then `codex2`, then `codex1`; native routing and cache continuity tests |
+| `portable-v0.6.0` | `50083af7` | 2026-10-24 | LiteLLM 1.106.2; Codex hook compatibility; 217 tests and 433 subtests pass; image, Compose and publication checks pass |
 
 Tags before the public root are private only and never leave the private server.
 

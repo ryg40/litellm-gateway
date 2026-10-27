@@ -5,7 +5,7 @@ This repo has two remotes:
 | Remote | URL | Use |
 | --- | --- | --- |
 | `origin` | the Git server of this clone | Fetch and push of this repo. |
-| `upstream` | `https://github.com/BerriAI/litellm.git` | Fetch only. Read upstream LiteLLM releases to compare files. |
+| `upstream` | `https://github.com/BerriAI/litellm.git` | Fetch only. Read upstream LiteLLM releases to compare files; never merge the upstream source tree. |
 
 A clone does not copy the remote configuration. Run the setup script once in each new clone:
 

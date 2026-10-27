@@ -1,6 +1,41 @@
 {
   "model_list": [
     {
+      "model_name": "codex1/gpt-6.1-terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6.1-terra",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 1.0e-06,
+        "output_cost_per_token": 5.0e-06,
+        "cache_read_input_token_cost": 5.0e-08,
+        "cache_creation_input_token_cost": 1.25e-06,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex1/terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
       "model_name": "codex1/gpt-6-luna",
       "litellm_params": {
         "model": "openai/gpt-6-luna",
@@ -110,6 +145,26 @@
       }
     },
     {
+      "model_name": "codex2/gpt-6.1-terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex2/terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
       "model_name": "codex2/luna",
       "litellm_params": {
         "model": "openai/gpt-6-luna",
@@ -174,6 +229,26 @@
       "litellm_params": {
         "model": "openai/gpt-6-astra",
         "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6.1-terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex3:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
         "stream_timeout": 570
@@ -247,6 +322,38 @@
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
         "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6.1-terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex-auto/terra",
+      "litellm_params": {
+        "model": "openai/gpt-6.1-terra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
       }
     },
     {
@@ -365,6 +472,18 @@
   "router_settings": {
     "max_fallbacks": 2,
     "fallbacks": [
+      {
+        "codex-auto/terra": [
+          "codex2/terra",
+          "codex1/terra"
+        ]
+      },
+      {
+        "codex-auto/gpt-6.1-terra": [
+          "codex2/gpt-6.1-terra",
+          "codex1/gpt-6.1-terra"
+        ]
+      },
       {
         "codex-auto/astra": [
           "codex2/astra",

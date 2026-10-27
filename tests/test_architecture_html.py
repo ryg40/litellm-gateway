@@ -3,6 +3,7 @@
 The image test target does not copy docs/. There the tests of the page skip and the
 self-test of the builder still runs. No test writes under docs/ or reads a host secret.
 """
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -44,6 +45,16 @@ def regex_rules():
 
 
 class BuilderTest(unittest.TestCase):
+    def test_checkout_below_local_keeps_public_links_in_checkout(self):
+        spec = importlib.util.spec_from_file_location('architecture_builder', BUILDER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as tmp:
+            checkout = Path(tmp) / '.local' / 'worktrees' / 'gateway'
+            module.ROOT = checkout
+            self.assertEqual(module.link_root(checkout / 'docs' / 'architecture.html'), checkout)
+            self.assertEqual(module.link_root(checkout / '.local' / 'diagrams' / 'private.html'), checkout)
+
     def test_selftest_passes(self):
         result = build("--selftest")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

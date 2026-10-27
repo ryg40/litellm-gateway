@@ -495,6 +495,9 @@ def escape_html(text):
 
 def link_root(out):
     """The checkout of an output path: the parent of its first .local directory, else ROOT."""
+    # A checkout can itself live below .local/worktrees/.
+    if out.is_relative_to(ROOT):
+        return ROOT
     parts = out.parts
     if ".local" in parts:
         return Path(*parts[:parts.index(".local")])

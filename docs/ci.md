@@ -1,10 +1,52 @@
 # CI pipeline
 
-This page says what a pipeline for this repo does. It gives no pipeline file for one CI product.
-Choose a CI system. See "Decisions for your environment".
+`.forgejo/workflows/upstream-daily.yml` runs on private Forgejo at 06:23 UTC each day.
+It also runs after a push to `local-dev` and supports `workflow_dispatch`.
+The private repository must use `local-dev` as its default branch for schedules.
+The public mirror remains portable-only.
 
-The pipeline file holds no build logic. It calls `scripts/scan.sh` and `scripts/build.sh`.
+The pipeline file holds no build logic. It calls the CI scripts described below.
 `docker-bake.hcl` holds the build definition. The same commands run on a Linux host, on a Mac and in CI.
+
+## Daily upstream updates
+
+`scripts/update-upstream.py prepare` reads the latest stable BerriAI GitHub release.
+It skips drafts, prereleases, equal versions, and older versions.
+A new release must have a valid index digest and both `linux/amd64` and `linux/arm64` images.
+The script updates Dockerfile and Bake pins, the tested-version list, and the install documents together.
+It builds the architecture page from its source.
+The tested-version addition is a candidate until the image suite passes.
+
+`scripts/ci-check.sh` runs the updater tests, architecture tests, all shell suites,
+image suite, image checks, Compose checks, and secret and public tree scans.
+It scans only the gateway add-on image layers; upstream layers contain third-party test keys.
+A failure stops the job before it pushes a branch or creates a pull request.
+
+`scripts/update-upstream.py publish` uses the short-lived job token to push one
+`automation/litellm-vX.Y.Z` branch and open one pull request against `local-dev`.
+It refuses a public repository, a different default branch, a mismatched origin, or unrelated file changes.
+It never force-pushes or pushes tags. It leaves an existing open or closed update request unchanged.
+An existing branch without a request stops the job for inspection; a lost create response triggers a read, not a second create.
+The pull request links the upstream comparison for hook review.
+Merge, portable promotion, container publication, and deployment remain manual.
+
+### Private runner
+
+Register a repository-scoped runner with label `litellm-ci`.
+The workflow overrides the job image with a digest-pinned Node 24 Debian image.
+`scripts/install-ci-tools.sh` installs hash-checked Docker CLI, Compose, Buildx, and gitleaks binaries.
+The runner needs Docker socket access; its shared runner configuration needs no change.
+The job uses BuildKit context transfer, `docker run` without checkout mounts, and binary scans.
+This avoids the checkout-bind problem of Docker-backed runner workspaces.
+The gitleaks wrapper normalizes the official binary's version output for the scanner's exact version check.
+The runner and job must use Linux amd64.
+
+Warning: Docker socket access gives trusted workflow code administrator-level access to the host.
+Keep the repository private. Do not add untrusted pull-request triggers to this workflow.
+
+The workflow needs no provider token, host `.env`, or long-lived Git write credential.
+It checks the current version even when no upgrade exists.
+A successful no-update run proves runner operation, but does not prove the live pull-request write path.
 
 ## On each push
 

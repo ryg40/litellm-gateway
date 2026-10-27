@@ -48,6 +48,32 @@ model_list:
       supports_xhigh_reasoning_effort: true
       supports_function_calling: true
       supports_tool_choice: true
+  - model_name: gpt-6.1-terra
+    litellm_params:
+      model: chatgpt/responses/gpt-6.1-terra
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  # Register capabilities separately to preserve native Codex streaming.
+  - model_name: gpt-6.1-terra-capabilities
+    litellm_params:
+      model: openai/responses/gpt-6.1-terra
+      api_base: http://127.0.0.1:9/v1
+      api_key: not-a-route
+    model_info:
+      id: responses/gpt-6.1-terra
+      litellm_provider: openai
+      mode: responses
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
   - model_name: gpt-6-astra
     litellm_params:
       model: chatgpt/responses/gpt-6-astra

@@ -58,7 +58,24 @@ class SolCapabilitiesTest(unittest.TestCase):
         both = [entry for entry in config["model_list"] if "gpt-6.1-sol" in entry["model_name"]]
         self.assertEqual(both, template["account"]["model_list"])
         ids = [entry["model_info"]["id"] for entry in config["model_list"] if "id" in entry["model_info"]]
-        self.assertEqual(ids, ["responses/gpt-6.1-sol"])
+        self.assertEqual(ids, ["responses/gpt-6.1-sol", "responses/gpt-6.1-terra"])
+
+    def test_account_terra_uses_native_streaming_and_separate_capabilities(self):
+        config = yaml.safe_load((ROOT / "config/codex.yaml").read_text())
+        route = next(entry for entry in config["model_list"] if entry["model_name"] == "gpt-6.1-terra")
+        self.assertEqual(route["litellm_params"]["model"], "chatgpt/responses/gpt-6.1-terra")
+        self.assertIs(route["model_info"]["supports_native_streaming"], True)
+        self.assertNotIn("litellm_provider", route["model_info"])
+        self.assertNotIn("id", route["model_info"])
+        capability = next(entry for entry in config["model_list"]
+                          if entry["model_info"].get("id") == "responses/gpt-6.1-terra")
+        self.assertEqual(capability["model_info"]["litellm_provider"], "openai")
+        self.assertFalse(capability["litellm_params"]["model"].startswith("chatgpt/"))
+        for entry in (route, capability):
+            self.assertEqual(entry["model_info"]["mode"], "responses")
+            for flag in ("supports_reasoning", "supports_xhigh_reasoning_effort",
+                         "supports_function_calling", "supports_tool_choice"):
+                self.assertIs(entry["model_info"][flag], True)
 
     def test_example_gateway_sol_alias_and_prices(self):
         text = (ROOT / "config/gateway.codex.example.yaml").read_text()
@@ -75,7 +92,7 @@ class SolCapabilitiesTest(unittest.TestCase):
                    if "id" in entry.get("model_info", {})}
         self.assertEqual({name: info["id"] for name, info in with_id.items()},
                          {"codex1/gpt-6-luna": "gpt-6-luna", "codex1/gpt-6-sol": "gpt-6-sol",
-                          "codex1/gpt-6.1-sol": "gpt-6.1-sol"})
+                          "codex1/gpt-6.1-sol": "gpt-6.1-sol", "codex1/gpt-6.1-terra": "gpt-6.1-terra"})
         # The entry with the id stands before each other entry for the same model.
         # With an alias entry first, the router reports cost 0.0 for the model.
         first = {}

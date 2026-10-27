@@ -165,9 +165,15 @@ Not verified: whether the old login stays valid at ChatGPT after a new login, so
 | `codex3/<model>` | Account 3 |
 | `codex-auto/<model>` | Account 3 first, then account 2, account 1 last. With two accounts: account 2, then account 1. |
 
-Each route exists for `luna`, `sol` and `astra`, and for the full upstream IDs `gpt-6-luna`, `gpt-6-sol`, `gpt-6.1-sol` and `gpt-6-astra`.
-The short name `sol` targets `gpt-6.1-sol`. A full ID is a pinned name and does not move.
-`gpt-6-terra` is not configured: ChatGPT Codex rejected it for subscription accounts. Check model availability for each account before you add a route.
+Each route exists for `luna`, `sol`, `astra` and `terra`, and for the full upstream IDs `gpt-6-luna`, `gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-astra` and `gpt-6.1-terra`.
+The short names `sol` and `terra` target `gpt-6.1-sol` and `gpt-6.1-terra`. A full ID is a pinned name and does not move.
+`gpt-6-terra` stays unconfigured: the new Terra route uses `gpt-6.1-terra`.
+Terra uses separate route and capability entries, like Sol, to preserve native Codex streaming.
+The gateway declares a conservative 272,000-token input limit; the API's larger 1,050,000-token window is unverified through ChatGPT Codex.
+Its standard API-equivalent prices are $1 input, $5 output, $0.05 cached input and $1.25 cache writes per million tokens.
+The cache-write price assumes 30-minute retention. Gateway prices are base-tier estimates; they do not apply long-context surcharges.
+Source: [OpenAI Terra model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-terra).
+Check model availability for each account before you add a route.
 
 `codex-auto/*` uses the native fallback of LiteLLM. The three-account default is `codex3`, then `codex2`, then `codex1` (`max_fallbacks: 2`).
 With two accounts, the primary is `codex2` and the sole fallback is `codex1`.
