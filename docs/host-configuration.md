@@ -93,6 +93,11 @@ They stop if `GATEWAY_CONFIG` points into `config/`, so that they never change a
 
 `scripts/sync-local-models.py` with no endpoint stops with exit code 1 and changes no file.
 
+`scripts/sync-local-models.py` replaces only the routes whose name starts with `<endpoint>/`. A route with
+a fixed name and no such prefix stays as written. Use one for a server that serves a fixed model id
+(for example with an alias option): clients keep the name when the model or the settings of the server
+change. Read its key from `.env` with `"api_key": "os.environ/<VAR>"`, never as a value in the file.
+
 ## Host override file
 
 `compose.yaml` has no external network and no fixed container name. A host that serves the gateway through

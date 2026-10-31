@@ -77,6 +77,22 @@ class SyncLocalModelsTest(unittest.TestCase):
                                  "llamaswap/" + EMBEDDING_MODEL)
                 self.assertEqual(embedding["model_info"], {"mode": "embedding"})
 
+    def test_fixed_route_without_endpoint_prefix_survives_a_refresh(self):
+        # A route with a fixed name and no "<endpoint>/" prefix, for a server with a fixed served
+        # model id, keeps its name and parameters when the endpoint catalogs change.
+        fixed = {"model_name": "fixed-route",
+                 "litellm_params": {"model": "openai/fixed-route", "api_base": "http://fixed.test:8090/v1",
+                                    "api_key": "os.environ/FIXED_ROUTE_API_KEY"}}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / ".local/config/gateway.yaml"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"model_list": [fixed, {"model_name": "llamaswap/old"}]}))
+            run(root, {FAST + "/models": [{"id": "new"}]}, ["--endpoint", f"llamaswap={FAST}"])
+            entries = json.loads(path.read_text())["model_list"]
+            self.assertEqual(entries[0], fixed)
+            self.assertEqual([entry["model_name"] for entry in entries], ["fixed-route", "llamaswap/new"])
+
     def test_unavailable_dedicated_model_does_not_replace_config(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

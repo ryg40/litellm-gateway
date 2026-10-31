@@ -100,7 +100,7 @@ Sections: [Terms](#terms), [Overview](#overview), [Prerequisites](#prerequisites
 ## Overview
 
 The stack is an OpenAI-compatible gateway. A client sends a request to the gateway. The gateway sends it to a provider.
-The gateway is LiteLLM 1.106.4 with the hooks and routers of this repo. Docker Compose runs it.
+The gateway is LiteLLM 1.106.6 with the hooks and routers of this repo. Docker Compose runs it.
 The base install has two services: `gateway` and `database`. The other services are optional and off by default.
 
 ```text
@@ -121,7 +121,7 @@ The base install has two services: `gateway` and `database`. The other services 
 | Kind | What the install makes | Step |
 | --- | --- | --- |
 | Containers | `litellm-gateway-1`, `litellm-database-1` | 6 |
-| Images | `litellm-gateway:local` (about 1.2 GB on `linux/amd64`), the LiteLLM base image, the Postgres image | 6 |
+| Images | `litellm-gateway:local` (about 1.3 GB on `linux/amd64`), the LiteLLM base image, the Postgres image | 6 |
 | More images | The scanner image `zricethezav/gitleaks:v8.28.0`. The tests also pull a Python image for one build stage. | 9 |
 | Published port | `127.0.0.1:4321`, to port 4000 of `gateway` | 6 |
 | Network | `litellm_default` | 6 |
@@ -250,7 +250,7 @@ Expected result: the second command prints `upstream: configuration is correct` 
 | External hosts | None. The script fetches nothing. |
 | Options | `--check` changes nothing: exit 0 for a correct configuration, exit 1 for a wrong one. `UPSTREAM_URL` in the environment names a mirror. |
 | Not touched | The remote `origin`. The script prints its URL without credentials. |
-| Later use | `scripts/fetch-upstream.sh v1.106.4` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
+| Later use | `scripts/fetch-upstream.sh v1.106.6` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
 
 </details>
 
@@ -386,7 +386,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 | Compose file and services | `compose.yaml`: `gateway` and `database`. |
 | Files read | `compose.yaml`, `.env`, `Dockerfile`, `.dockerignore`, `image/hooks/`, `image/routers/`. |
 | Image built | `litellm-gateway:local`, the target `gateway` of `Dockerfile`: the LiteLLM base image plus `image/hooks/` and `image/routers/`. |
-| Images pulled | `ghcr.io/berriai/litellm@sha256:c169fb3a...` (LiteLLM 1.106.4) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
+| Images pulled | `ghcr.io/berriai/litellm@sha256:37e2dafb...` (LiteLLM 1.106.6) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
 | Containers | `litellm-gateway-1` and `litellm-database-1`. The gateway runs as the user `1000:1000`, with no capability and with `no-new-privileges`. Each container has `restart: unless-stopped` and keeps at most 3 log files of 10 MB. |
 | Network and volume | The network `litellm_default`: both services use only this network. The volume `litellm_postgres-data`, at `/var/lib/postgresql/data` of `database`. |
 | Ports | `gateway` listens on 4000 in the container. Compose publishes it on `127.0.0.1:4321`; `GATEWAY_PORT` changes the address. `database` listens on 5432 and publishes no port. |
@@ -399,7 +399,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 Two other ways to get the image ([docs/image.md](docs/image.md)):
 
 - `scripts/build.sh` builds the same target with `docker buildx bake -f docker-bake.hcl`. It first runs the target `smoke`, which starts Python in the image.
-  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.106.4-p<portable version>`.
+  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.106.6-p<portable version>`.
   Compose uses that image only when `GATEWAY_IMAGE` in `.env` names it. The script pushes nothing without `--push`.
 - A released image: set `GATEWAY_IMAGE` in `.env` to the registry name with its index digest. Then run `docker compose up -d` without `--build`.
 
@@ -740,7 +740,7 @@ They run as the user `1000:1000` with no capability. They reach each other by se
 
 | Layer | Content |
 | --- | --- |
-| Base image | The upstream LiteLLM 1.106.4 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
+| Base image | The upstream LiteLLM 1.106.6 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
 | `image/hooks/` | The build copies these files to `/opt/litellm-gateway/image/hooks/`. `PYTHONPATH` names this directory. |
 | `image/routers/` | The build copies `quota_router.py` and `decision_router.py` to `/opt/litellm-gateway/image/routers/`. |
 
@@ -761,7 +761,7 @@ The Responses-to-Chat bridge can drop function arguments that arrive only in com
 `responses_tool_finish.py` emits those arguments once, from `response.function_call_arguments.done` or `response.output_item.done`.
 It keeps the call id, function name and sequential chat tool index. Calls that already delivered arguments stay unchanged.
 State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged. Completion events never end the stream early.
-Tests cover the hook with LiteLLM 1.101.0 and 1.106.4. Remove it when the pinned upstream passes the regression tests without it.
+Tests cover the hook with LiteLLM 1.101.0 and 1.106.6. Remove it when the pinned upstream passes the regression tests without it.
 `tests/test_responses_tool_finish.py` checks synthetic event sequences. [tests/README.md](tests/README.md) gives the pinned-image test commands.
 Not verified: live parallel tool calls with this argument recovery hook.
 
@@ -942,7 +942,7 @@ Build inputs (`scripts/build.sh`, `docker-bake.hcl` and `Dockerfile`):
 | --- | --- | --- |
 | `REGISTRY` | Empty | Adds the registry prefix to the image name. |
 | `IMAGE_NAME` | `litellm-gateway` | Sets the image name. |
-| `LITELLM_VERSION` | `1.106.4` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
+| `LITELLM_VERSION` | `1.106.6` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
 | `PORTABLE_VERSION` | Script: Git release description; direct bake: `0` | Sets the portable part of the image version. |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | Sets the image tag. |
 | `BASE_IMAGE` | The pin in `docker-bake.hcl`, equal to `Dockerfile` | Selects the LiteLLM base image; a mirror must keep its digest. |
@@ -1012,7 +1012,7 @@ Check these parts for each release of `portable`. The right column names the sou
 
 | Part of this file | Source |
 | --- | --- |
-| LiteLLM version, the digest of the base image and the size of the gateway image | `Dockerfile`, `docker-bake.hcl`, `docker image ls litellm-gateway:local` |
+| LiteLLM version, the digest of the base image and the size of the gateway image | `Dockerfile`, `docker-bake.hcl`, `docker image inspect <built-gateway-image> --format '{{.Size}}'` (bytes) |
 | Postgres digest and major version | `compose.yaml` |
 | Scanner version and digest | `scripts/scan.sh` |
 | Minimum tool versions | [README.md](README.md), section "Quick start" |
