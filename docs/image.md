@@ -13,8 +13,10 @@ defines the targets, and `scripts/build.sh` starts a build.
 
 - `PYTHONPATH=/opt/litellm-gateway/image/hooks`. Python imports `sitecustomize` from it at start.
 - `PYTHONDONTWRITEBYTECODE=1`. The add-on directories are read-only.
-- `LITELLM_LOCAL_MODEL_COST_MAP=True` and `LITELLM_TELEMETRY=False`. LiteLLM uses the cost map of the
-  installed version and sends no telemetry, also with `docker run` or a CI job without Compose.
+- `LITELLM_LOCAL_MODEL_COST_MAP=True`, `LITELLM_TELEMETRY=False` and `LITELLM_TELEMETRY_DISABLED=true`.
+  LiteLLM uses the cost map of the installed version and sends no telemetry, also with `docker run` or a
+  CI job without Compose. From 1.108.0, `LITELLM_TELEMETRY_DISABLED` is the switch of the new telemetry
+  package; `LITELLM_TELEMETRY` is the older name.
 - The files are owned by `root:root` with mode `0444`; the runtime user cannot change them.
 - The runtime user is `65532:65532` (`nonroot` of the Wolfi base). A Compose `user:` setting replaces it.
 - The layout under `/opt/litellm-gateway` mirrors the repo. `tests/conftest.py` finds
@@ -52,13 +54,13 @@ The entry point (`docker/prod_entrypoint.sh`) and the command of the base image 
 Gateway, with the usual LiteLLM arguments:
 
 ```
-docker run ... litellm-gateway:1.106.6-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
+docker run ... litellm-gateway:1.108.2-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
 ```
 
 Router (Compose: `entrypoint: ["python", "-m", "uvicorn"]`):
 
 ```
-docker run ... --entrypoint python litellm-gateway:1.106.6-p0.1.0 \
+docker run ... --entrypoint python litellm-gateway:1.108.2-p0.1.0 \
   -m uvicorn quota_router:app --app-dir /opt/litellm-gateway/image/routers --host 0.0.0.0 --port 4000
 ```
 
@@ -128,7 +130,7 @@ reports cost 0.0 after a reload of the cost map. The request still returns 200.
 `config/gateway.codex.example.yaml` has the prices in `model_info` of `codex1/gpt-6-luna` and `codex1/gpt-6-sol`.
 A host file without these two `model_info` blocks must not schedule or trigger `/reload/model_cost_map`.
 
-Tested in isolation with LiteLLM 1.106.6, 1.103.0 and 1.101.0.
+Tested in isolation with LiteLLM 1.108.2, 1.103.0 and 1.101.0.
 The account hook supports the changed parameter forwarding and request safety signature.
 Not verified: the upstream image signature; cosign is not installed on the upgrade host.
 
@@ -180,10 +182,10 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | --- | --- | --- |
 | `REGISTRY` | empty | registry part of the tag |
 | `IMAGE_NAME` | `litellm-gateway` | image name |
-| `LITELLM_VERSION` | `1.106.6` | tag and label; change with `BASE_IMAGE` |
+| `LITELLM_VERSION` | `1.108.2` | tag and label; change with `BASE_IMAGE` |
 | `PORTABLE_VERSION` | `X.Y.Z` of the `portable-vX.Y.Z` tag | tag and label |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | image tag |
-| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:37e2dafb…` | upstream image; a mirror of the same digest is permitted |
+| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:d8b4ac35…` | upstream image; a mirror of the same digest is permitted |
 | `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | only for pytest in the `test` target |
 | `PIP_INDEX_URL` | `https://pypi.org/simple` | package index of the `test` target; a mirror is permitted |
 | `PIP_CA_FILE` | empty | `scripts/build.sh` only: CA bundle for the package index, given as the BuildKit secret `pip-ca` |
@@ -192,7 +194,7 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | `SOURCE_DATE_EPOCH` | commit time | file times and `created` label |
 
 Tag format: `<registry>/litellm-gateway:<litellm version>-p<portable version>`,
-for example `ghcr.io/owner/litellm-gateway:1.106.6-p0.1.0` for the tag `portable-v0.1.0`.
+for example `ghcr.io/owner/litellm-gateway:1.108.2-p0.1.0` for the tag `portable-v0.1.0`.
 Without a `portable-vX.Y.Z` tag at HEAD, the portable version is the `git describe` form,
 for example `0.1.0-3-gabc1234`, or `0-gabc1234` when no such tag exists.
 

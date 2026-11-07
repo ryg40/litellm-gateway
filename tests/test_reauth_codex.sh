@@ -154,6 +154,14 @@ unset DOCKER 2>/dev/null || true
 
 # A new copy of the tree with the three accounts and no fake setting.
 trees=0
+state_snapshot() { # the names, modes and content of the state files, with no file time
+    (
+        cd "$tree/state"
+        find . -exec ls -ld {} + | awk '{print $1, $NF}' | sort
+        find . -type f -exec cksum {} + | sort
+    )
+}
+
 new_tree() {
     trees=$((trees + 1))
     tree=$work/tree$trees
@@ -446,7 +454,7 @@ echo exited >"$fake/status-codex3"
 echo none >"$fake/health-codex3"
 echo starting >"$fake/health-codex2"
 echo "INFO codex2 skipped source=no-login" >"$fake/router-log"
-before=$(ls -lR "$tree/state")
+before=$(state_snapshot)
 expect_status "check of one complete account" 0 sh "$reauth" 1 --check
 expect "check: one line and the note" [ "$(wc -l <"$work/out")" -eq 2 ]
 expect "check: complete account" has "codex1: service=running health=healthy file=yes mode=600 login=complete expires_in="
@@ -463,7 +471,7 @@ expect "check: invalid file" has "login=invalid"
 write_token "$tree/state/codex1/auth.json" "$old_token" "$old_token"
 expect "check reads the last 2 minutes of the router log" called "logs --since 2m --no-log-prefix codex-router"
 expect "check stops, starts and runs nothing" [ -z "$(sequence)" ]
-expect "check changes no file" [ "$before" = "$(ls -lR "$tree/state")" ]
+expect "check changes no file" [ "$before" = "$(state_snapshot)" ]
 
 # DOCKER names the docker command of the script.
 new_tree

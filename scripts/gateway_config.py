@@ -4,17 +4,20 @@ Compose mounts ${GATEWAY_CONFIG:-./config/gateway.example.yaml}. The scripts
 use the same variable, from the environment or from .env, with the host file
 .local/config/gateway.yaml as the default. They never write a tracked example.
 """
+import ipaddress
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 EXAMPLE = REPO / "config/gateway.example.yaml"
 HOST_DEFAULT = ".local/config/gateway.yaml"
 # LiteLLM reads the file as YAML. PyYAML takes 1e-07 as a string: a float needs a dot.
 EXPONENT = re.compile(r"(?m)((?:: |^ +)-?[0-9]+)(e[-+]?[0-9]+,?)$")
+FALLBACK_SETTINGS = ("fallbacks", "context_window_fallbacks", "content_policy_fallbacks")
 
 
 def setting(root, name):
@@ -47,8 +50,50 @@ def load(root):
     return result, json.loads((result if result.exists() else EXAMPLE).read_text())
 
 
+def local_only_routes(root):
+    """Return the route names in LOCAL_ONLY_ROUTES, a comma-separated host value."""
+    return [name.strip() for name in (setting(root, "LOCAL_ONLY_ROUTES") or "").split(",") if name.strip()]
+
+
+def _private_base(base):
+    """Return True for a private or loopback address, or a container name with no dot."""
+    host = urlsplit(base or "").hostname or ""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return bool(host) and "." not in host
+    return address.is_private or address.is_loopback
+
+
+def local_only_problems(config, routes):
+    """Return one line for each way that a local-only route can reach another model."""
+    problems = []
+    deployments = config.get("model_list", [])
+    for route in routes:
+        matching = [item for item in deployments if item.get("model_name") == route]
+        if not matching:
+            problems.append(f"{route}: not in model_list")
+        for item in matching:
+            base = item.get("litellm_params", {}).get("api_base")
+            if not _private_base(base):
+                problems.append(f"{route}: api_base is not a private address")
+    for section in ("litellm_settings", "router_settings"):
+        settings = config.get(section) or {}
+        if settings.get("default_fallbacks"):
+            problems.append(f"{section}.default_fallbacks applies to every route")
+        for name in FALLBACK_SETTINGS:
+            for entry in settings.get(name) or []:
+                for source in entry:
+                    if source in routes or (source == "*" and routes):
+                        problems.append(f"{section}.{name}: fallback on {source}")
+    return problems
+
+
 def save(root, target, config):
-    """Write the configuration to the host path atomically."""
+    """Write the configuration to the host path atomically. Refuse a local-only breach."""
+    problems = local_only_problems(config, local_only_routes(root))
+    if problems:
+        raise SystemExit("Refused: a local-only route can reach another model.\n" + "\n".join(problems))
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".gateway-", dir=target.parent)
     try:

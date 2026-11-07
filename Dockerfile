@@ -2,9 +2,9 @@
 # docs/image.md describes the paths, the targets and the build command.
 # The final stage has no RUN step, so a multi-platform build needs no emulation.
 
-# LiteLLM 1.106.6, index digest for linux/amd64 and linux/arm64.
+# LiteLLM 1.108.2, index digest for linux/amd64 and linux/arm64.
 # A CI system can give a mirror of the same digest.
-ARG BASE_IMAGE=ghcr.io/berriai/litellm@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+ARG BASE_IMAGE=ghcr.io/berriai/litellm@sha256:d8b4ac356743d647a13bb93f45b941fcd5f5354122cfd205948a1b192790389d
 # python:3.13-slim-bookworm, index digest. Used only to install pytest for the test target.
 ARG PYTHON_IMAGE=docker.io/library/python@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26
 
@@ -22,14 +22,14 @@ RUN --network=none chown -R 0:0 /out \
 
 FROM ${BASE_IMAGE} AS gateway
 ARG BASE_IMAGE
-ARG LITELLM_VERSION=1.106.6
+ARG LITELLM_VERSION=1.108.2
 ARG PORTABLE_VERSION=0
 ARG REVISION=unknown
 ARG CREATED=1970-01-01T00:00:00Z
 ARG SOURCE_URL=
 # BASE_NAME and BASE_DIGEST split BASE_IMAGE; docker-bake.hcl sets them.
 ARG BASE_NAME=ghcr.io/berriai/litellm
-ARG BASE_DIGEST=sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+ARG BASE_DIGEST=sha256:d8b4ac356743d647a13bb93f45b941fcd5f5354122cfd205948a1b192790389d
 
 # The layout under /opt/litellm-gateway mirrors the repo, so tests/conftest.py
 # finds the hooks at <root>/image/hooks in the test target.
@@ -42,7 +42,8 @@ COPY --from=addons /out/ /opt/litellm-gateway/
 ENV PYTHONPATH=/opt/litellm-gateway/image/hooks \
     PYTHONDONTWRITEBYTECODE=1 \
     LITELLM_LOCAL_MODEL_COST_MAP=True \
-    LITELLM_TELEMETRY=False
+    LITELLM_TELEMETRY=False \
+    LITELLM_TELEMETRY_DISABLED=true
 
 LABEL org.opencontainers.image.title="litellm-gateway" \
       org.opencontainers.image.description="LiteLLM with the hooks and routers of this repo" \

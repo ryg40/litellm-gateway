@@ -6,6 +6,7 @@ export SCAN_ENGINE=binary
 sh scripts/check-prereqs.sh
 python3 -m unittest discover -s tests -p test_update_upstream.py
 python3 -m unittest discover -s tests -p test_architecture_html.py
+python3 -m unittest discover -s tests -p test_local_only_routes.py
 sh scripts/scan.sh selftest
 sh scripts/public_check.sh selftest
 sh scripts/scan.sh --level fail tree

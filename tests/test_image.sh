@@ -60,6 +60,7 @@ assert quota_router.cache_session_id is chatgpt_session_id.cache_session_id, 'ro
 check "image sets the local cost map and no telemetry" py "
 import os
 for key, value in {'LITELLM_LOCAL_MODEL_COST_MAP': 'True', 'LITELLM_TELEMETRY': 'False',
+                   'LITELLM_TELEMETRY_DISABLED': 'true',
                    'PYTHONPATH': '$root/hooks', 'PYTHONDONTWRITEBYTECODE': '1'}.items():
     assert os.environ.get(key) == value, (key, os.environ.get(key))
 "

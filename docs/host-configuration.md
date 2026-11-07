@@ -33,6 +33,7 @@ and one local OpenAI-compatible route, `local/example-model`, that reads its add
 | `LOCAL_ENDPOINTS` | none | Endpoints for `scripts/sync-local-models.py`, for example `llamaswap=http://host:9292/v1,vllm=http://host:8001/v1`. |
 | `LOCAL_EMBEDDING_MODEL`, `LOCAL_EMBEDDING_BASE` | none | Optional dedicated embedding route. Set both or neither. |
 | `LOCAL_EMBEDDING_PROVIDER` | the first endpoint | Endpoint name that gets the embedding route. |
+| `LOCAL_ONLY_ROUTES` | none | Comma-separated routes that must never reach a model outside the private network. A scripted write refuses a breach. After a hand edit of the gateway file, run `python3 scripts/check-local-only-routes.py` before the restart. |
 | `GATEWAY_IMAGE` | `litellm-gateway:local` | Image of `gateway`, `codex1`, `codex2`, `codex3`, `codex-router` and `copilot`. A deployment sets a registry name with a digest. |
 | `BASE_IMAGE` | the pin in `Dockerfile` | Upstream LiteLLM image of a local build (`--build`). |
 | `COMPOSE_FILE` | `compose.yaml` | Compose files. A host adds its override file here. `.env.example` has no such line. |

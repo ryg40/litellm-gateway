@@ -1,5 +1,9 @@
 """Exercise stable discovery, pin consistency, and private PR publication offline."""
+import ast
+import base64
+from contextlib import redirect_stderr
 import importlib.util
+import io
 import json
 from pathlib import Path
 import shutil
@@ -76,6 +80,13 @@ class UpstreamUpdateTests(unittest.TestCase):
 
         def run(*args, **kwargs):
             calls.append(args)
+            if args[:2] in [('git', 'ls-remote'), ('git', 'commit')] or 'push' in args:
+                env = kwargs['env']
+                self.assertEqual(env['GIT_CONFIG_COUNT'], '1')
+                self.assertEqual(env['GIT_CONFIG_KEY_0'], 'http.https://forge.example/.extraheader')
+                expected = 'Authorization: Basic ' + base64.b64encode(b'x-access-token:synthetic').decode()
+                origin = self.git('remote', 'get-url', '--push', 'origin')
+                self.assertEqual(real_run('git', 'config', '--get-urlmatch', 'http.extraheader', origin, env=env), expected)
             if args[:2] == ('git', 'ls-remote'):
                 return 'existing' if existing_branch else ''
             if args[:2] == ('git', '-c'):
@@ -131,7 +142,7 @@ class UpstreamUpdateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             updater.current_pin()
 
-    def test_publish_uses_exact_branch_without_tags_and_opens_one_pr(self):
+    def test_publish_origin_with_git_suffix_uses_exact_branch_without_tags_and_opens_one_pr(self):
         self.prepare()
         calls, api_calls = self.publish()
         pushes = [args for args in calls if 'push' in args]
@@ -142,6 +153,38 @@ class UpstreamUpdateTests(unittest.TestCase):
         self.assertEqual(posts[0]['base'], 'local-dev')
         self.assertEqual(posts[0]['head'], 'automation/litellm-v1.2.4')
         self.assertFalse(any('--force' in arg for args in calls for arg in args))
+
+    def test_publish_origin_without_git_suffix_passes(self):
+        self.git('remote', 'set-url', 'origin', 'https://forge.example/team/gateway')
+        self.prepare()
+        calls, api_calls = self.publish()
+        self.assertEqual(sum('push' in args for args in calls), 1)
+        self.assertEqual(sum(data is not None for _, data in api_calls), 1)
+        self.assertEqual(self.git('log', '-1', '--format=%s'), 'Update LiteLLM base to 1.2.4')
+
+    def test_publish_rejects_different_origin_before_commit_or_network_git(self):
+        self.prepare()
+        source = self.git('rev-parse', 'HEAD')
+        for origin in [
+            'https://forge.example/team/another.git',
+            'https://different.example/team/gateway.git',
+            'https://forge.example/another/gateway.git',
+            'https://forge.example/team/gateway.git.git',
+            'https://forge.example/team/gateway/',
+            'https://forge.example/team/gateway.git?query=1',
+            'https://forge.example/team/gateway.git#fragment',
+            'http://forge.example/team/gateway.git',
+            'https://user@forge.example/team/gateway.git',
+        ]:
+            with self.subTest(origin=origin):
+                self.git('remote', 'set-url', '--push', 'origin', origin)
+                with patch.object(updater, 'run', wraps=updater.run) as run:
+                    with self.assertRaisesRegex(updater.UpdateError, '^origin differs from the CI repository$'):
+                        self.publish()
+                self.assertFalse(any(call.args[:2] in [('git', 'ls-remote'), ('git', 'commit')]
+                                     or 'push' in call.args for call in run.call_args_list))
+                self.assertEqual(self.git('rev-parse', 'HEAD'), source)
+                self.assertEqual(self.git('diff', '--cached', '--name-only'), '')
 
     def test_public_repository_and_wrong_default_fail_without_push(self):
         self.prepare()
@@ -199,6 +242,43 @@ class UpstreamUpdateTests(unittest.TestCase):
         with patch.object(updater, 'request_json', side_effect=responses) as api, patch.object(updater, 'run', side_effect=run):
             updater.publish()
             self.assertEqual(sum(call.kwargs.get('data') is not None or len(call.args) == 3 for call in api.call_args_list), 1)
+
+
+class StopMessageTests(unittest.TestCase):
+    def test_script_validation_messages_are_fixed_text(self):
+        tree = ast.parse(SCRIPT.read_text())
+        messages = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Raise) or not isinstance(node.exc, ast.Call):
+                continue
+            name = getattr(node.exc.func, 'id', '')
+            self.assertNotEqual(name, 'ValueError')
+            if name == 'UpdateError':
+                self.assertEqual(len(node.exc.args), 1)
+                self.assertIsInstance(node.exc.args[0], ast.Constant)
+                message = node.exc.args[0].value
+                self.assertIsInstance(message, str)
+                self.assertNotIn('://', message)
+                messages.append(message)
+        self.assertEqual(len(messages), 22)
+
+    def test_main_prints_script_validation_message(self):
+        output = io.StringIO()
+        with patch('sys.argv', ['update-upstream.py', 'publish']), redirect_stderr(output):
+            with patch.object(updater, 'publish', side_effect=lambda: updater.version_tuple('bad')):
+                self.assertEqual(updater.main(), 1)
+        self.assertEqual(output.getvalue(), 'upstream: expected a stable X.Y.Z version; update stopped\n')
+
+    def test_main_hides_external_exception_text(self):
+        private = 'https://token@example.invalid/private'
+        for error in [ValueError(private), OSError(private), KeyError(private),
+                      json.JSONDecodeError(private, '', 0), subprocess.CalledProcessError(1, private)]:
+            with self.subTest(error=type(error).__name__):
+                output = io.StringIO()
+                with patch('sys.argv', ['update-upstream.py', 'publish']), redirect_stderr(output):
+                    with patch.object(updater, 'publish', side_effect=error):
+                        self.assertEqual(updater.main(), 1)
+                self.assertEqual(output.getvalue(), 'upstream: ' + type(error).__name__ + '; update stopped\n')
 
 
 if __name__ == '__main__':

@@ -164,6 +164,7 @@ Old personal identities or old wording can stop that check. Fix the publication 
 | `portable-v0.5.0` | `dff7fa0f` | 2026-10-12 | the automatic Codex routes prefer `codex3`, then `codex2`, then `codex1`; native routing and cache continuity tests |
 | `portable-v0.6.0` | `50083af7` | 2026-10-24 | LiteLLM 1.106.2; Codex hook compatibility; 217 tests and 433 subtests pass; image, Compose and publication checks pass |
 | `portable-v0.7.0` | `bb480d8c` | 2026-10-27 | LiteLLM 1.106.4; daily private Forgejo update requests; image, shell, Compose and publication checks pass |
+| `portable-v0.8.0` | `6df5924d` | 2026-10-31 | LiteLLM 1.106.6; fixed local routes stay during a model sync; 220 tests and 445 subtests pass; image, shell, Compose and publication checks pass |
 
 Tags before the public root are private only and never leave the private server.
 

@@ -1,7 +1,7 @@
 # LiteLLM gateway
 
 This repo builds and runs an OpenAI-compatible gateway with LiteLLM.
-The gateway image is a local build on the LiteLLM 1.106.6 image, pinned by index digest.
+The gateway image is a local build on the LiteLLM 1.108.2 image, pinned by index digest.
 The image adds the hooks and routers of this repo (`image/hooks/`, `image/routers/`).
 The stack has two services: `gateway` and a Postgres `database`.
 Two sets of optional services are off by default: Codex account services in `compose.codex.yaml`
