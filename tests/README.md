@@ -143,8 +143,9 @@ It also checks URL rewrites, redacted paths, installed hook invocation and the d
 Refusal tests check the reason as well as the exit code.
 The public suite checks committed blobs against different index and working-tree content.
 It covers encoded text, binary flags, submodules, symlinks, private filenames and path-bound line exceptions.
-`test_promotion_scan.sh` uses the real scanner in a scratch clone with `--no-local` and a synthetic local deny list.
-It checks UTF-16 secret payloads and a real installed pre-push hook, using only local bare remotes.
+`test_promotion_scan.sh` uses the real scanner in an empty scratch repository with copied fixture files and a synthetic local deny list.
+It imports no source refs or release tags. It checks UTF-16 payloads and a real pre-push hook, using only local bare remotes.
+`test_promotion_fixture.py` runs that suite from a tagged portable checkout and verifies that its source refs remain unchanged.
 Set `TMPDIR` to a scratch root you create to keep every test directory under that root.
 Not verified: real GitHub, macOS execution, malicious concurrent policy edits or every unsupported encoding.
 
@@ -153,6 +154,7 @@ sh tests/test_promotion.sh
 sh tests/test_public_check.sh
 sh tests/test_public_hook.sh
 sh tests/test_promotion_scan.sh
+python3 -m unittest discover -s tests -p test_promotion_fixture.py
 scripts/public_check.sh selftest
 scripts/scan.sh selftest
 scripts/scan.sh --level fail tree

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Real-scanner integration: scratch clone, clean fixture, local bare remote only.
+# Real-scanner integration: scratch repository, clean fixture, local bare remote only.
 # Needs the scanner engine described in docs/secret-handling.md.
 set -eu
 repo=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -12,8 +12,8 @@ GIT_COMMITTER_NAME=Test GIT_COMMITTER_EMAIL=test@example.invalid
 SCAN_NAME_PREFIX=${SCAN_NAME_PREFIX:-litellm-test-}
 export HOME GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL SCAN_NAME_PREFIX
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
-# --no-local copies objects without hard links. No original remote is contacted.
-git clone -q --no-local --no-checkout --single-branch "$repo" "$tmp/r"
+# Copy only fixture files. Release tags and cached portable refs must not enter.
+git init -q "$tmp/r"
 cd "$tmp/r"
 git symbolic-ref HEAD refs/heads/local-dev
 git read-tree --empty

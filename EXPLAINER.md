@@ -888,7 +888,8 @@ For those tests, the test cases supply the description. The table also includes 
 | `tests/test_model_capability_ids.py` | Checks GPT capability registration while keeping opaque deployment ids and prices separate. |
 | `tests/test_model_info.py` | Checks model capability and price entries for a model absent from the cost map. |
 | `tests/test_promotion.sh` | Tests promotion with local bare remotes and simulated GitHub responses. |
-| `tests/test_promotion_scan.sh` | Tests promotion with the real scanner, a scratch clone and local bare remotes. |
+| `tests/test_promotion_fixture.py` | Checks that a tagged portable source does not leak refs into the promotion scanner fixture. |
+| `tests/test_promotion_scan.sh` | Tests promotion with the real scanner, an empty scratch repository and local bare remotes. |
 | `tests/test_public_check.sh` | Tests public rules in a temporary repository with a scanner test double. |
 | `tests/test_public_hook.sh` | Tests the push ref guard and history ranges with local hook inputs. |
 | `tests/test_quota_router.py` | Tests quota-router account order, usage decisions and request handling with simulated inputs. |
