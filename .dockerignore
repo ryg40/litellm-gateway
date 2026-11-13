@@ -5,6 +5,7 @@
 *
 !image/hooks/
 !image/routers/
+!image/security-requirements.txt
 !tests/
 !config/
 !scripts/

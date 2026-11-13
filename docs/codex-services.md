@@ -190,7 +190,15 @@ The hook `image/hooks/chatgpt_session_id.py` sets that id in each proxy that has
 
 - Without a session id from the client, the id is `prefix-<hash>`. The hash covers the model, the system and developer messages (or `instructions`) and the first user message. A conversation that grows keeps its id. Another first user message gives another id.
 - A client id applies when the client sends it to the proxy that has the `chatgpt` deployment: an account service, or the gateway of the prototype. There the client sets its own id with `litellm_session_id` in the request body. The hook also honors `litellm_session_id` in `extra_body`, `session_id`, `metadata.session_id` and the header `x-litellm-session-id`. That proxy sends the client id to ChatGPT as it is.
-- Through the gateway, the routes `codexN/*` and `codex-auto/*` are `openai/` deployments. Such a deployment does not forward `litellm_session_id` or `metadata.session_id` of the client. The account service (or `codex-router`) then derives the id, so the conversation still has a stable id, but not the id of the client.
+- Through the gateway, the routes `codexN/*` and `codex-auto/*` are `openai/` deployments. Such a deployment drops a top-level `litellm_session_id` of the client.
+  Without Chat-to-Responses conversion, it sends `extra_body.litellm_session_id` to the next proxy as a top-level `litellm_session_id`.
+  LiteLLM 1.109.1 can select that conversion for GPT chat requests with tools and `reasoning_effort=xhigh`.
+  The conversion drops the extra session field. A later tool-disabled request can retain it, so the two requests can use different ids.
+  An isolated fake-provider check reproduced this limit. This release does not fix it or establish a real cache-hit percentage.
+  It drops `metadata.session_id` on `/v1/chat/completions`, and passes `metadata` on to the next proxy on `/v1/responses`.
+  A historical check with LiteLLM 1.108.2 and a stub next proxy showed forwarding without that conversion on both endpoints.
+  Not verified: the id that ChatGPT receives for `metadata.session_id` through the gateway on `/v1/responses`.
+- Without a client id at the account service (or at `codex-router`), that proxy derives the id. The conversation still has a stable id, but not the id of the client.
 - Do not set `general_settings.missing_session_id` in a proxy that has a `chatgpt` deployment: it gives each request a random id before the hook runs.
 - Limit: a Responses client that sends only the new turn with `previous_response_id` and no session id gets another id for each turn. Such a client must send its own id.
 - The hook acts on `/v1/chat/completions` and `/v1/responses`, and only when each deployment of the model group is a `chatgpt` deployment. A request for another provider does not change.
@@ -225,6 +233,12 @@ Not verified: non-streaming requests through `codex1/*` and `codex2/*`. `codex-r
 `compose.codex.yaml` starts `codex-router`. The routes of `config/gateway.codex.example.yaml` do not use it: they use the native fallback.
 The router stays in the image as an alternative for `codex-auto/*`. To use it, a host gateway file points the `codex-auto` entries at `http://codex-router:4000/v1` and has no fallbacks for them.
 
+`codex-router` sets the response header `X-Codex-Account` to the name of the account service that answered, for example `codex3`. `tests/test_quota_router.py` checks it.
+Only the router sets this header. The account services, the native fallback and LiteLLM do not set it.
+So the routes of `config/gateway.codex.example.yaml` and of `scripts/enable-codex.py` give no `X-Codex-Account`, also not on `codex-auto/*`.
+The gateway passes the header of the router to its client as `llm_provider-x-codex-account`, not as `X-Codex-Account`.
+A check with LiteLLM 1.108.2 and a stub router showed this for streaming and non-streaming chat requests.
+
 `CODEX_ACCOUNT_ORDER` in `compose.codex.yaml` lists the account services in preference order. The default is `codex3,codex2,codex1`.
 The first name is the preferred account. The last name is the final fallback: the router never asks for its usage and mounts no token of it.
 Each other account has a read-only token mount and its own block state.
@@ -244,6 +258,51 @@ services:
 ```
 
 Compose adds the mount to the two mounts of `compose.codex.yaml`. Not verified: a run with another order.
+
+### Switch the account order
+
+For a host that already uses `codex-router`, run:
+
+```sh
+python3 scripts/switch-codex-order.py 2-3-1
+```
+
+The script shows the current and requested orders, then asks for confirmation.
+To return to account 3 first, use `3-2-1`. Spaces or full names also work: `2 3 1` or `codex2,codex3,codex1`.
+
+```sh
+python3 scripts/switch-codex-order.py --status
+python3 scripts/switch-codex-order.py 2-3-1 --dry-run
+python3 scripts/switch-codex-order.py 3-2-1 --yes
+```
+
+Warning: Applying an order recreates `codex-router`. This can interrupt active requests and clears the router's quota cache.
+
+The script uses the active `COMPOSE_FILE` from the environment or `.env`.
+It changes only the existing `CODEX_ACCOUNT_ORDER` entry in `.local/compose.host.yaml`.
+That file must appear in `COMPOSE_FILE` and contain exactly one mapping entry for the order.
+The script keeps other settings, comments, Compose tags and file permissions.
+It saves a private backup beside the override before an edit.
+It serializes switches with `.local/.codex-order.lock` and refuses a second concurrent switch.
+
+Before confirmation, the script checks the rendered configuration and the running container.
+It refuses native gateway routing, gateway fallbacks, a changed image or deployment settings, and missing read-only token mounts.
+The first two accounts need their existing token directory mounts; the final account needs no quota token.
+Thus `2-3-1` and `3-2-1` work with the default mounts.
+An order with account 1 first or second requires its read-only mount before using this script.
+The script never reads or changes login tokens.
+
+The apply command uses `--no-deps --no-build --pull never` and targets only `codex-router`.
+It checks the new container's order, health and unchanged image.
+It sends no inference, login or quota request. Quota blocks can still select an account later in the order.
+A repeated request for the configured, running order changes nothing.
+
+If recreation or verification fails, the requested file and its backup remain.
+The script reports failure and makes no automatic rollback or second restart.
+Use `--status` and inspect the router before retrying or restoring the backup.
+Not verified: an actual live recreation through this helper. Its tests simulate recreation and use real Compose rendering.
+
+### Router behavior
 
 What the router does:
 

@@ -807,7 +807,8 @@ class VersionTests(unittest.TestCase):
                     with self.assertRaisesRegex(hook.StopStart, f"^LiteLLM {value} is not tested"):
                         hook.install()
 
-    def test_stops_when_upstream_has_the_key(self):
+    @patch.object(hook, "_reviewed_native_key", return_value=False)
+    def test_stops_when_upstream_has_the_key(self, _reviewed):
         from litellm.types.router import GenericLiteLLMParams
         variants = [
             patch.object(upstream_auth, "get_cached_authenticator", create=True, new=lambda f: None),
@@ -823,6 +824,24 @@ class VersionTests(unittest.TestCase):
         with patch.object(upstream_auth.Authenticator, "__init__", init):
             with self.assertRaisesRegex(hook.StopStart, "Upstream LiteLLM has chatgpt_auth_file"):
                 hook.install()
+
+    def test_reviewed_native_key_requires_exact_version_and_shape(self):
+        from litellm.types.router import GenericLiteLLMParams
+
+        def native_init(self, auth_file=None):
+            pass
+
+        with patch("importlib.metadata.version", return_value="1.109.1"), \
+                patch.object(upstream_auth, "get_cached_authenticator", create=True, new=lambda f: None), \
+                patch.dict(GenericLiteLLMParams.model_fields, {"chatgpt_auth_file": None}), \
+                patch.object(upstream_auth.Authenticator, "__init__", native_init):
+            self.assertTrue(hook._reviewed_native_key())
+            with patch("importlib.metadata.version", return_value="1.109.2"):
+                self.assertFalse(hook._reviewed_native_key())
+            with patch.object(upstream_auth, "get_cached_authenticator", new=None):
+                self.assertFalse(hook._reviewed_native_key())
+            with patch.object(upstream_auth.Authenticator, "__init__", new=lambda self: None):
+                self.assertFalse(hook._reviewed_native_key())
 
     def test_untested_version_stops_the_interpreter(self):
         # A RuntimeError in sitecustomize only prints a line; the process goes on.
@@ -907,7 +926,8 @@ class SwitchTests(unittest.TestCase):
                 self.assertFalse(found["active"])
                 for name, origin in UPSTREAM.items():
                     self.assertEqual(found[name], origin)
-                self.assertEqual(found["key_in_lists"], [False, False, False])
+                native_key = hook._reviewed_native_key()
+                self.assertEqual(found["key_in_lists"], [native_key, native_key, False])
                 self.assertFalse(found["marker"])
 
     def test_hook_on_replaces_them(self):
@@ -918,7 +938,7 @@ class SwitchTests(unittest.TestCase):
                 self.assertTrue(found["active"])
                 for name in UPSTREAM:
                     self.assertTrue(found[name].startswith("chatgpt_auth_file:install."), found[name])
-                self.assertEqual(found["key_in_lists"], [True, True, True])
+                self.assertEqual(found["key_in_lists"], [True, True, not hook._reviewed_native_key()])
 
     def test_switch_values(self):
         for value, expected in [("on", True), ("1", True), ("true", True), ("Yes", True), (" on ", True),

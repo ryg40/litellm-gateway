@@ -32,7 +32,19 @@ A dump of the database while the stack runs:
 docker compose exec -T database pg_dump -U litellm -d litellm > litellm.sql
 ```
 
-Not verified: this command in the current layout, and a restore of its output.
+A documentation test on a clone of release 0.9.0 (LiteLLM 1.108.2) ran this command and a restore of its output.
+The restore went into a second Compose project with an empty database volume and the same `.env`, so the same `LITELLM_SALT_KEY`:
+
+```sh
+export COMPOSE_PROJECT_NAME=litellm-restore GATEWAY_PORT=127.0.0.1:4393
+docker compose up -d database
+docker compose exec -T database psql -q -U litellm -d litellm -v ON_ERROR_STOP=1 < litellm.sql
+docker compose up -d gateway
+```
+
+`psql` ended with exit code 0. A virtual key of the dumped database then worked on `/v1/models` of the restored gateway.
+`COMPOSE_PROJECT_NAME` selects another project and thus another, empty volume. Do not restore into the volume of the running stack.
+Not verified: a restore with another `LITELLM_SALT_KEY`, or into another LiteLLM version.
 Not verified: a restore of `.env`, `secrets/` and `state/`.
 
 A new clone needs new secrets and new Codex logins ([codex-services.md](codex-services.md)), or a verified secure restore.

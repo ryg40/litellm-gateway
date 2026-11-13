@@ -1,7 +1,7 @@
 # LiteLLM gateway
 
 This repo builds and runs an OpenAI-compatible gateway with LiteLLM.
-The gateway image is a local build on the LiteLLM 1.108.2 image, pinned by index digest.
+The gateway image is a local build on the LiteLLM 1.109.1 image, pinned by index digest.
 The image adds the hooks and routers of this repo (`image/hooks/`, `image/routers/`).
 The stack has two services: `gateway` and a Postgres `database`.
 Two sets of optional services are off by default: Codex account services in `compose.codex.yaml`
@@ -101,7 +101,7 @@ A public address, for example `https://gateway.example.com`, needs a reverse pro
 | [docs/mac.md](docs/mac.md) | The stack on a Mac: Podman as the Docker Desktop replacement, Colima as the alternative, TLS inspection |
 | [docs/ci.md](docs/ci.md) | What a CI pipeline does |
 | [docs/operations.md](docs/operations.md) | Secrets, backup and recovery, base-image update |
-| [docs/codex-services.md](docs/codex-services.md) | Up to three Codex account services, logins, a new login with `scripts/reauth-codex.sh`, `codex-router` (supported design) |
+| [docs/codex-services.md](docs/codex-services.md) | Codex account services, `scripts/reauth-codex.sh`, and account-order switching with `scripts/switch-codex-order.py` |
 | [docs/codex-accounts.md](docs/codex-accounts.md) | More than one ChatGPT account in one process (prototype, off by default) |
 | [docs/anthropic.md](docs/anthropic.md) | The separate Anthropic credential |
 | [docs/copilot.md](docs/copilot.md) | GitHub Copilot models: the service `copilot`, login, token directory, `copilot/*` routes |

@@ -9,8 +9,9 @@ This prototype is off by default and changes nothing in the supported design.
 
 LiteLLM 1.101.0 and 1.103.0 support one ChatGPT account for each process.
 The hook `image/hooks/chatgpt_auth_file.py` lets each `chatgpt` deployment name its own auth file.
-The key `chatgpt_auth_file` in `litellm_params` and its behavior follow open upstream pull request #41928.
-Remove the hook when the pinned LiteLLM has the key. The hook stops the start when it finds the key upstream.
+LiteLLM 1.109.1 has native `chatgpt_auth_file` transport support.
+The optional hook keeps stricter path, client-header, refresh-isolation and no-login rules.
+Unreviewed native implementations still stop startup when the hook is enabled.
 
 ## Switch
 
@@ -49,8 +50,8 @@ The gateway configuration of the test stack must name the `chatgpt` deployments 
 
 ### Guard with the hook off
 
-With the hook off, upstream LiteLLM ignores `chatgpt_auth_file` and uses the process account.
-It can then start the device-code login in the gateway.
+Older upstream versions ignore `chatgpt_auth_file` with the hook off and can start the process-account login.
+Version 1.109.1 supports the key, but the local guard still requires an explicit choice of the stricter account policy.
 Guard: with the hook off, `sitecustomize.py` reads the configuration file of a proxy start
 (`--config`, `-c` or `CONFIG_FILE_PATH`) and its `include` files.
 When a deployment in `model_list` has the key, the interpreter stops at start with a message that names the switch.
@@ -63,7 +64,7 @@ Cost and limits of the guard:
 - A file that it cannot read or parse does not stop the start; LiteLLM reports that file itself.
 
 Warning: a `chatgpt` deployment with the key that comes from the database or the API is not guarded.
-With the hook off, it uses the process account.
+With the hook off, those deployments use upstream behavior, which differs between versions.
 
 ## How the hook works
 
@@ -86,7 +87,8 @@ With the hook off, it uses the process account.
   LiteLLM merges `extra_headers` and `headers` of the request body into the request headers
   after `validate_environment()`. The hook returns a header object that sets the account values again after each merge,
   and `sign_request()` sets them once more as the last step before the request goes out.
-  When the header object is lost, `sign_request()` fails the request.
+  Version 1.109.1 copies headers before signing; the hook re-reads the guarded deployment file at that step.
+  Without that trusted deployment path or the original header object, `sign_request()` fails the request.
 - The proxy rejects a client request that has `chatgpt_auth_file` anywhere in the body with HTTP 400.
   `allow_client_side_credentials` does not change this.
   The check also reads a string as JSON text, because LiteLLM reads some fields (`metadata`, `extra_body`) from JSON text.

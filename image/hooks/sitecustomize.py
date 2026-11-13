@@ -29,6 +29,10 @@ if _problem:
 
 import litellm  # noqa: E402
 
+from model_capability_ids import install as install_model_capability_ids  # noqa: E402
+
+install_model_capability_ids()
+
 from responses_tool_finish import install  # noqa: E402
 
 install()

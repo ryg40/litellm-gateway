@@ -6,6 +6,8 @@ The service is off by default: `compose.copilot.yaml` is not in `COMPOSE_FILE`, 
 
 Tested with LiteLLM 1.103.0, with a stub in place of GitHub and the Copilot API.
 Observed with LiteLLM 1.103.0 and a real GitHub Copilot account: login, model listing and a streaming tool call work through the service.
+The service runs on the gateway image. The image pins LiteLLM 1.109.1 (`Dockerfile`).
+The image suite checks the configuration. Not verified: every configured model with a real Copilot account on LiteLLM 1.109.1.
 Not verified: model availability and entitlement for your account.
 
 ## Design
@@ -210,6 +212,7 @@ Embedding routes have no short alias. Clients use their pinned full names.
 | `copilot/text-embedding-3-small` | `litellm_proxy/text-embedding-3-small` at `http://copilot:4000` | `text-embedding-3-small` to `github_copilot/text-embedding-3-small` | Pinned embedding model, 1536 dimensions. |
 
 The two examples hold ids from the LiteLLM 1.103.0 cost map for Claude Opus, Claude Sonnet, GPT-5, Codex and embeddings. They are placeholders: the account list of step 3 decides.
+The cost map of LiteLLM 1.108.2 does not have some of these ids (section [An id that the cost map does not have](#an-id-that-the-cost-map-does-not-have)).
 A list can hold ids such as `claude-opus-4.6-fast`. In the example, `opus` points at `claude-opus-4.5`. Decide the target of `opus` after step 3. Not verified: the premium-request cost of a `-fast` id.
 
 Gateway entries:
@@ -231,6 +234,9 @@ Service entries:
 ### An id that the cost map does not have
 
 All ids of the two examples are in the cost map of LiteLLM 1.103.0, so no entry has `model_info` with an `id`.
+A historical check of the LiteLLM 1.108.2 cost map found no `github_copilot/<id>` entry for 9 of the 13 ids of `config/copilot.yaml`:
+`claude-opus-41`, `claude-opus-4.5`, `claude-opus-4.6-fast`, `claude-sonnet-4`, `claude-sonnet-4.5`, `gpt-5`, `gpt-5.1`, `gpt-5.1-codex-max` and `gpt-5.2`.
+Not verified: requests to these entries with LiteLLM 1.109.1.
 A new id of the account can be missing from the cost map. If the service refuses a parameter for such an id, add this form to its entry in `config/copilot.yaml`:
 
 ```yaml
@@ -248,6 +254,7 @@ A new id of the account can be missing from the cost map. If the service refuses
 The form has no `litellm_provider`. The GPT parameter check of LiteLLM reads the bare id with no provider; a value `github_copilot` then does not match, and the check refuses `tool_choice`.
 A value `openai` passes that check, but then the lookup of `mode` under the provider `github_copilot` fails, and the request goes to `/chat/completions`.
 With no value, both lookups pass. Verified with LiteLLM 1.103.0 for `gpt-5.5`, `gpt-6-astra`, `gpt-6-luna`, `gpt-6-sol` and `grok-4.7`.
+Not verified: these lookups with LiteLLM 1.109.1.
 
 An id that LiteLLM cannot map to a provider by its name, for example `gpt-6.1-sol`, still fails the check: `github_copilot does not support parameters: ['tool_choice']`.
 For such an id add the allowlist to `litellm_params` of each entry that uses it:

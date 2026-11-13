@@ -40,6 +40,11 @@ and one local OpenAI-compatible route, `local/example-model`, that reads its add
 
 The scripts read each variable from the environment first, then from `.env`.
 
+Limit of `LOCAL_ONLY_ROUTES`: the check reads the `api_base` of each named route as the gateway file has it. It does not resolve an `os.environ/NAME` reference.
+So it refuses such an address with `api_base is not a private address`, also when the variable holds a private address. A scripted write refuses it too.
+The example route `local/example-model` of `config/gateway.example.yaml` has this form (`os.environ/LOCAL_API_BASE`).
+For a local-only route, write the address into the host gateway file: a private or loopback address, or a container name without a dot.
+
 ## Gateway image
 
 All services except `database` use `${GATEWAY_IMAGE:-litellm-gateway:local}`. `docs/image.md` describes the image.

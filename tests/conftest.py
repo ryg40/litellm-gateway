@@ -23,6 +23,7 @@ HOOK_TESTS = {
     "test_codex_cost.py",
     "test_codex_cache_continuity.py",
     "test_model_info.py",
+    "test_model_capability_ids.py",
     "test_quota_router.py",
     "test_responses_tool_finish.py",
     "test_sol_capabilities.py",

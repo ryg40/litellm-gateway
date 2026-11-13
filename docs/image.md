@@ -24,13 +24,13 @@ defines the targets, and `scripts/build.sh` starts a build.
 
 The image does not contain route configuration, `.env`, `secrets/`, `state/`,
 `.local/`, Git data, tests or documents. `.dockerignore` is an allowlist: it
-sends only `image/hooks/`, `image/routers/` and, for the `test` target,
+sends only `image/hooks/`, `image/routers/`, `image/security-requirements.txt` and, for the `test` target,
 `tests/`, `config/`, `scripts/`, `compose.yaml`, `compose.codex.yaml` and `compose.copilot.yaml` to the builder.
 
-The final stage `gateway` has `COPY`, `ENV`, `LABEL`, `USER` and `ARG` steps only. The
-stage `addons` sets owner, mode and file times; it runs on the build platform
-(`FROM --platform=$BUILDPLATFORM`). A build for another platform therefore
-needs no emulation (QEMU).
+The `security-wheels` stage installs hash-pinned pure-Python fixes for `filelock` and `oauthlib`.
+The gateway removes the old packages and metadata before copying the fixed versions.
+This cleanup runs Python for the target platform, so cross-platform builds need emulation.
+The `addons` stage sets owner, mode and file times on the build platform.
 
 ## Hooks
 
@@ -42,7 +42,8 @@ needs no emulation (QEMU).
 | `litellm_versions.py` | The list `TESTED_VERSIONS` for all hooks. | No hook stays. |
 | `responses_tool_finish.py` | Preserves completion-only function arguments and gives a streamed chat answer with tool calls the finish reason `tool_calls`. | The pinned upstream bridge passes `tests/test_responses_tool_finish.py` without the hook. |
 | `chatgpt_session_id.py` | Gives a request for a `chatgpt` deployment a stable session id ([codex-services.md](codex-services.md), section "Stable session id"). `quota_router.py` imports `cache_session_id` from it. | Upstream gives a conversation without a client id a stable `session_id` header. Then keep `cache_session_id` for the router, or move it back into `quota_router.py`. |
-| `chatgpt_auth_file.py` | One ChatGPT account for each deployment. Off by default ([codex-accounts.md](codex-accounts.md)). | The pinned upstream has the key `chatgpt_auth_file`. The hook stops the start when it finds the key upstream. |
+| `chatgpt_auth_file.py` | One guarded ChatGPT account for each deployment. Off by default ([codex-accounts.md](codex-accounts.md)). The reviewed 1.109.1 native path keeps the local security policy. | Upstream passes the path-confinement, client-header, refresh-isolation and no-login tests without this hook. |
+| `model_capability_ids.py` | Restores provider lookup for explicit GPT capability ids on 1.109.1, without copying deployment prices. | Upstream passes the model-info template tests without this hook. |
 
 When you remove a hook, remove its file, its lines in `sitecustomize.py`, its test module in `tests/` and the name of that module in `HOOK_TESTS` of `tests/conftest.py`.
 `quota_router.py` needs `image/hooks` on `PYTHONPATH`, as the image sets it.
@@ -54,13 +55,13 @@ The entry point (`docker/prod_entrypoint.sh`) and the command of the base image 
 Gateway, with the usual LiteLLM arguments:
 
 ```
-docker run ... litellm-gateway:1.108.2-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
+docker run ... litellm-gateway:1.109.1-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
 ```
 
 Router (Compose: `entrypoint: ["python", "-m", "uvicorn"]`):
 
 ```
-docker run ... --entrypoint python litellm-gateway:1.108.2-p0.1.0 \
+docker run ... --entrypoint python litellm-gateway:1.109.1-p0.1.0 \
   -m uvicorn quota_router:app --app-dir /opt/litellm-gateway/image/routers --host 0.0.0.0 --port 4000
 ```
 
@@ -130,9 +131,10 @@ reports cost 0.0 after a reload of the cost map. The request still returns 200.
 `config/gateway.codex.example.yaml` has the prices in `model_info` of `codex1/gpt-6-luna` and `codex1/gpt-6-sol`.
 A host file without these two `model_info` blocks must not schedule or trigger `/reload/model_cost_map`.
 
-Tested in isolation with LiteLLM 1.108.2, 1.103.0 and 1.101.0.
-The account hook supports the changed parameter forwarding and request safety signature.
-Not verified: the upstream image signature; cosign is not installed on the upgrade host.
+The current image suite runs against LiteLLM 1.109.1.
+The version allowlist also retains earlier qualified releases.
+The account hook supports native auth-file forwarding while preserving the local security rules.
+Verify the pinned upstream image signature with the independently pinned Cosign key before deployment.
 
 ## Build
 
@@ -164,7 +166,7 @@ The stage `smoke` starts `python -c pass` on top of the gateway image of the hos
 with the hooks as at run time. The hooks stop a LiteLLM version that is not in
 `TESTED_VERSIONS` (`image/hooks/litellm_versions.py`), so a build on an untested
 `BASE_IMAGE` fails at build time, with the message of the hook. The stage is not
-part of the gateway image, so the final stage keeps no `RUN` step.
+part of the gateway image. The gateway stage runs only the dependency cleanup described above.
 A direct `docker buildx bake gateway` or `release` runs no smoke step.
 
 The `release` target needs a builder with the `docker-container` driver, or
@@ -182,19 +184,19 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | --- | --- | --- |
 | `REGISTRY` | empty | registry part of the tag |
 | `IMAGE_NAME` | `litellm-gateway` | image name |
-| `LITELLM_VERSION` | `1.108.2` | tag and label; change with `BASE_IMAGE` |
+| `LITELLM_VERSION` | `1.109.1` | tag and label; change with `BASE_IMAGE` |
 | `PORTABLE_VERSION` | `X.Y.Z` of the `portable-vX.Y.Z` tag | tag and label |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | image tag |
-| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:d8b4ac35…` | upstream image; a mirror of the same digest is permitted |
-| `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | only for pytest in the `test` target |
-| `PIP_INDEX_URL` | `https://pypi.org/simple` | package index of the `test` target; a mirror is permitted |
+| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:11175975…` | upstream image; a mirror of the same digest is permitted |
+| `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | installs security dependencies and pytest |
+| `PIP_INDEX_URL` | `https://pypi.org/simple` | package index for security dependencies and tests; a mirror is permitted |
 | `PIP_CA_FILE` | empty | `scripts/build.sh` only: CA bundle for the package index, given as the BuildKit secret `pip-ca` |
 | `SOURCE_URL` | empty | `org.opencontainers.image.source`; give the URL of the public repo |
 | `PROVENANCE` | `false` | provenance attestation of `release`: `false`, `min`, `max` |
 | `SOURCE_DATE_EPOCH` | commit time | file times and `created` label |
 
 Tag format: `<registry>/litellm-gateway:<litellm version>-p<portable version>`,
-for example `ghcr.io/owner/litellm-gateway:1.108.2-p0.1.0` for the tag `portable-v0.1.0`.
+for example `ghcr.io/owner/litellm-gateway:1.109.1-p0.1.0` for the tag `portable-v0.1.0`.
 Without a `portable-vX.Y.Z` tag at HEAD, the portable version is the `git describe` form,
 for example `0.1.0-3-gabc1234`, or `0-gabc1234` when no such tag exists.
 

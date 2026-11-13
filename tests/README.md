@@ -22,14 +22,14 @@ docker run --rm -v /tmp/litellm-pytest:/pt python:3.13-slim-bookworm \
 
 Run the commands from the repository root.
 
-## LiteLLM 1.108.2 (pinned in `Dockerfile` and `docker-bake.hcl`)
+## LiteLLM 1.109.1 (pinned in `Dockerfile` and `docker-bake.hcl`)
 
 ```
 docker run --rm --network none --entrypoint python \
   -v "$PWD":/w:ro -v /tmp/litellm-pytest:/pt:ro \
   -e PYTHONPATH=/pt:/w/image/hooks -e PYTHONDONTWRITEBYTECODE=1 \
   -e LITELLM_LOCAL_MODEL_COST_MAP=True -w /w \
-  ghcr.io/berriai/litellm@sha256:d8b4ac356743d647a13bb93f45b941fcd5f5354122cfd205948a1b192790389d \
+  ghcr.io/berriai/litellm@sha256:11175975a3093e05e92faee2fe2fe3412a3ae2fcaa849eb0fe25d5f0d8bcb2e9 \
   -m pytest -p no:cacheprovider -q tests
 ```
 
@@ -108,6 +108,18 @@ It starts no container and reads no token of the host. It needs `sh` and `python
 
 ```
 sh tests/test_reauth_codex.sh
+```
+
+## Codex account-order switch
+
+`tests/test_switch_codex_order.py` tests the switch with synthetic host files and simulated Docker operations.
+It checks both directions, confirmation, a dry run, backups, file permissions, token mounts, deployment differences and failure handling.
+One check uses real `docker compose config` to prove that only the order changes with a `!override` volume list.
+It starts no container, reads no host token and changes no running service.
+The tests need Python's standard library; the real rendering check also needs Docker Compose.
+
+```sh
+python3 -m unittest discover -s tests -p test_switch_codex_order.py
 ```
 
 ## Host prerequisites

@@ -394,10 +394,13 @@ class ProxyTests(unittest.TestCase):
     def test_nonstream_aggregation(self):
         chunk = {'id': 'chatcmpl-test', 'object': 'chat.completion.chunk', 'created': 1000,
                  'model': 'gpt-5.6-luna', 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': 'OK'}, 'finish_reason': 'stop'}]}
+        chunk['usage'] = {'prompt_tokens': 10, 'completion_tokens': 1, 'total_tokens': 11}
         content = ('data: ' + json.dumps(chunk) + '\n\ndata: [DONE]\n\n').encode()
         result, calls = self.invoke([(200, content)])
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json()['choices'][0]['message']['content'], 'OK')
+        self.assertEqual(result.json()['usage']['total_tokens'], 11)
+        self.assertEqual(calls, ['codex3'])
 
     def test_partial_nonstream_is_not_retried(self):
         result, calls = self.invoke([(200, b'data: {}\n\n')])

@@ -1,8 +1,8 @@
 """LiteLLM 1.101.0 and 1.103.0: one ChatGPT account per deployment.
 
 A chatgpt deployment names its auth file with `chatgpt_auth_file` in
-`litellm_params`, as in open upstream PR #41928. Remove this hook when the
-pinned upstream has the key; install() stops the start when it does.
+`litellm_params`. On reviewed upstream versions with native support, the
+hook retains the stricter path, credential, and no-device-login guards.
 
 The hook is off by default. It changes LiteLLM only when the environment
 of the process sets CHATGPT_AUTH_FILE_HOOK=on (1, true, yes, on). The switch
@@ -84,6 +84,20 @@ def _upstream_has_key():
         KEY in GenericLiteLLMParams.model_fields
         or hasattr(authenticator, "get_cached_authenticator")
         or "auth_file" in inspect.signature(authenticator.Authenticator.__init__).parameters
+    )
+
+
+def _reviewed_native_key():
+    """Native transport support does not replace the local security policy."""
+    from importlib.metadata import version
+    from litellm.llms.chatgpt import authenticator
+    from litellm.types.router import GenericLiteLLMParams
+
+    return (
+        version("litellm") == "1.109.1"
+        and KEY in GenericLiteLLMParams.model_fields
+        and callable(getattr(authenticator, "get_cached_authenticator", None))
+        and "auth_file" in inspect.signature(authenticator.Authenticator.__init__).parameters
     )
 
 
@@ -401,8 +415,8 @@ def install():
     problem = untested()
     if problem:
         raise StopStart(problem)
-    if _upstream_has_key():
-        raise StopStart("Upstream LiteLLM has chatgpt_auth_file; remove the chatgpt_auth_file hook")
+    if _upstream_has_key() and not _reviewed_native_key():
+        raise StopStart("Upstream LiteLLM has chatgpt_auth_file; review the chatgpt_auth_file hook")
 
     from fastapi import HTTPException
     from litellm.exceptions import AuthenticationError
@@ -424,11 +438,12 @@ def install():
     params_module.OPTIONAL_KWARGS_KEYS = params_module.OPTIONAL_KWARGS_KEYS | {KEY}
     params_module._OPTIONAL_KWARGS_KEYS = params_module.OPTIONAL_KWARGS_KEYS
     main_module = import_module("litellm.main")
-    if hasattr(main_module, "FORWARDED_KWARGS_KEYS"):
-        main_module.FORWARDED_KWARGS_KEYS = main_module.FORWARDED_KWARGS_KEYS | {KEY}
-    else:
-        # 1.106.2 expands this set directly at the completion() call site.
-        main_module.AWS_CREDENTIAL_KWARGS_KEYS = main_module.AWS_CREDENTIAL_KWARGS_KEYS | {KEY}
+    if not _reviewed_native_key():
+        if hasattr(main_module, "FORWARDED_KWARGS_KEYS"):
+            main_module.FORWARDED_KWARGS_KEYS = main_module.FORWARDED_KWARGS_KEYS | {KEY}
+        else:
+            # 1.106.2 expands this set directly at the completion() call site.
+            main_module.AWS_CREDENTIAL_KWARGS_KEYS = main_module.AWS_CREDENTIAL_KWARGS_KEYS | {KEY}
 
     # Client requests never set the key. Not even with an admin opt-in.
     original_safe = auth_utils.is_request_body_safe
@@ -447,7 +462,8 @@ def install():
     auth_utils.is_request_body_safe = is_request_body_safe
 
     # get_llm_provider() runs before the deployment is known. Read no token here.
-    def _get_openai_compatible_provider_info(self, model, api_base, api_key, custom_llm_provider):
+    def _get_openai_compatible_provider_info(self, model, api_base, api_key, custom_llm_provider,
+                                            litellm_params=None):
         return self.authenticator.get_api_base(), None, custom_llm_provider
 
     def credentials(config, model, litellm_params, api_key=None):
@@ -478,8 +494,15 @@ def install():
         # and built the body: the last step before the request goes out.
         def sign_request(self, headers, *args, **kwargs):
             pinned = getattr(headers, "pinned", None)
+            params = kwargs.get("optional_params") or (args[0] if args else {})
+            if pinned is None and _reviewed_native_key() and auth_file_from(params) is not None:
+                # Native Responses copies headers to a plain dict before signing.
+                # Re-resolve only the guarded deployment file, never client headers.
+                token, account_id = _account(kwargs.get("model") or "", params)
+                headers = _account_headers(headers, token, account_id, params)
+                pinned = headers.pinned
             if pinned is None:
-                # LiteLLM replaced the dict of validate_environment(): fail closed.
+                # No guarded deployment account remains: fail closed.
                 raise AuthenticationError(
                     message="chatgpt request headers lost the account values; review chatgpt_auth_file",
                     llm_provider="chatgpt", model=kwargs.get("model") or "")

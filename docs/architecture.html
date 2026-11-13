@@ -514,7 +514,7 @@ button.chip { cursor: pointer; }
    ],
    "group": "build",
    "part": "core",
-   "summary": "The gateway image: the LiteLLM 1.108.2 base image plus the hooks and routers of this repo. docker compose up -d --build builds it from the target gateway. All services except database run it.",
+   "summary": "The gateway image: the LiteLLM 1.109.1 base image plus the hooks and routers of this repo. docker compose up -d --build builds it from the target gateway. All services except database run it.",
    "facts": [
     [
      "Variable",
@@ -2634,9 +2634,9 @@ button.chip { cursor: pointer; }
   },
   {
    "id": "base-image",
-   "label": "LiteLLM 1.108.2 base image",
+   "label": "LiteLLM 1.109.1 base image",
    "lines": [
-    "LiteLLM 1.108.2 base image"
+    "LiteLLM 1.109.1 base image"
    ],
    "group": "build",
    "part": "core",
@@ -2692,7 +2692,7 @@ button.chip { cursor: pointer; }
    ],
    "group": "build",
    "part": "core",
-   "summary": "The stages addons, gateway, smoke, pytest and test. The final stage gateway has no RUN step. The stage addons sets owner, mode and file times of the hooks and routers.",
+   "summary": "The stages addons, security-wheels, gateway, smoke, pytest and test. The gateway stage removes old dependency metadata. The stage addons sets owner, mode and file times of the hooks and routers.",
    "facts": [],
    "views": [
     "release"
@@ -2768,7 +2768,7 @@ button.chip { cursor: pointer; }
    ],
    "group": "build",
    "part": "core",
-   "summary": "The default target for the host platform. It loads the image into the local image store. Its tag is litellm-gateway:1.108.2-p<portable version>.",
+   "summary": "The default target for the host platform. It loads the image into the local image store. Its tag is litellm-gateway:1.109.1-p<portable version>.",
    "facts": [],
    "views": [
     "release"
@@ -2838,10 +2838,10 @@ button.chip { cursor: pointer; }
   },
   {
    "id": "image-tagged",
-   "label": "litellm-gateway:1.108.2-pX.Y.Z",
+   "label": "litellm-gateway:1.109.1-pX.Y.Z",
    "lines": [
     "litellm-gateway:",
-    "1.108.2-pX.Y.Z"
+    "1.109.1-pX.Y.Z"
    ],
    "group": "build",
    "part": "core",

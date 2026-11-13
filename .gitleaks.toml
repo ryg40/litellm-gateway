@@ -3168,4 +3168,6 @@ regexTarget = "secret"
 regexes = [
     # V8 header constants (usr/include/node/v8-internal.h): kApiTaggedSize = kApiInt32Size
     '''^kApi[A-Za-z0-9]*Size$''',
+    # oauthlib docstrings: RFC 6749 tokens and the OAuth1 example consumer key.
+    '''^(?:2YotnFZFEjr1zCsicMWpAA|tGzv3JOkF0XG5Qx2TlKWIA|0685bd9184jfhq22)$''',
 ]

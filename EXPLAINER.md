@@ -100,7 +100,7 @@ Sections: [Terms](#terms), [Overview](#overview), [Prerequisites](#prerequisites
 ## Overview
 
 The stack is an OpenAI-compatible gateway. A client sends a request to the gateway. The gateway sends it to a provider.
-The gateway is LiteLLM 1.108.2 with the hooks and routers of this repo. Docker Compose runs it.
+The gateway is LiteLLM 1.109.1 with the hooks and routers of this repo. Docker Compose runs it.
 The base install has two services: `gateway` and `database`. The other services are optional and off by default.
 
 ```text
@@ -121,8 +121,8 @@ The base install has two services: `gateway` and `database`. The other services 
 | Kind | What the install makes | Step |
 | --- | --- | --- |
 | Containers | `litellm-gateway-1`, `litellm-database-1` | 6 |
-| Images | `litellm-gateway:local` (about 1.3 GB on `linux/amd64`), the LiteLLM base image, the Postgres image | 6 |
-| More images | The scanner image `zricethezav/gitleaks:v8.28.0`. The tests also pull a Python image for one build stage. | 9 |
+| Images | `litellm-gateway:local` (about 1.3 GB on `linux/amd64`), the LiteLLM base image, the Postgres image and a Python build image | 6 |
+| More images | The scanner image `zricethezav/gitleaks:v8.28.0`. The tests reuse the Python build image. | 9 |
 | Published port | `127.0.0.1:4321`, to port 4000 of `gateway` | 6 |
 | Network | `litellm_default` | 6 |
 | Volume | `litellm_postgres-data`, the database | 6 |
@@ -250,7 +250,7 @@ Expected result: the second command prints `upstream: configuration is correct` 
 | External hosts | None. The script fetches nothing. |
 | Options | `--check` changes nothing: exit 0 for a correct configuration, exit 1 for a wrong one. `UPSTREAM_URL` in the environment names a mirror. |
 | Not touched | The remote `origin`. The script prints its URL without credentials. |
-| Later use | `scripts/fetch-upstream.sh v1.108.2` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
+| Later use | `scripts/fetch-upstream.sh v1.109.1` fetches one release tag from `github.com` into `refs/upstream/tags/`. |
 
 </details>
 
@@ -386,7 +386,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 | Compose file and services | `compose.yaml`: `gateway` and `database`. |
 | Files read | `compose.yaml`, `.env`, `Dockerfile`, `.dockerignore`, `image/hooks/`, `image/routers/`. |
 | Image built | `litellm-gateway:local`, the target `gateway` of `Dockerfile`: the LiteLLM base image plus `image/hooks/` and `image/routers/`. |
-| Images pulled | `ghcr.io/berriai/litellm@sha256:d8b4ac35...` (LiteLLM 1.108.2) and `postgres@sha256:a3b7f434...` (Postgres 16, from Docker Hub). Each reference pins an index digest. |
+| Images pulled | LiteLLM 1.109.1, Postgres 16 and the Python build image. `Dockerfile` and `compose.yaml` pin their index digests. |
 | Containers | `litellm-gateway-1` and `litellm-database-1`. The gateway runs as the user `1000:1000`, with no capability and with `no-new-privileges`. Each container has `restart: unless-stopped` and keeps at most 3 log files of 10 MB. |
 | Network and volume | The network `litellm_default`: both services use only this network. The volume `litellm_postgres-data`, at `/var/lib/postgresql/data` of `database`. |
 | Ports | `gateway` listens on 4000 in the container. Compose publishes it on `127.0.0.1:4321`; `GATEWAY_PORT` changes the address. `database` listens on 5432 and publishes no port. |
@@ -399,7 +399,7 @@ Expected result: `docker compose ps` shows both services as healthy, with `127.0
 Two other ways to get the image ([docs/image.md](docs/image.md)):
 
 - `scripts/build.sh` builds the same target with `docker buildx bake -f docker-bake.hcl`. It first runs the target `smoke`, which starts Python in the image.
-  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.108.2-p<portable version>`.
+  It sets the labels for the revision, the version and the time from Git. The tag is `litellm-gateway:1.109.1-p<portable version>`.
   Compose uses that image only when `GATEWAY_IMAGE` in `.env` names it. The script pushes nothing without `--push`.
 - A released image: set `GATEWAY_IMAGE` in `.env` to the registry name with its index digest. Then run `docker compose up -d` without `--build`.
 
@@ -617,7 +617,10 @@ A later login for an account that exists: `sh scripts/reauth-codex.sh <1|2|3|all
 The script stops one service. It moves `auth.json` to a backup with mode 0600.
 It runs the login and then starts the service again.
 `scripts/login-codex-account.sh` is for the prototype of [docs/codex-accounts.md](docs/codex-accounts.md). The account services do not use it.
-[docs/codex-services.md](docs/codex-services.md) covers one account, the router and the limits.
+An existing quota-router setup can change its order with `python3 scripts/switch-codex-order.py 2-3-1 --dry-run`.
+Remove `--dry-run` to request confirmation, save a backup and recreate only `codex-router`.
+Warning: applying the order can interrupt active requests and clears the router's quota cache.
+[docs/codex-services.md](docs/codex-services.md) covers the required override, token mounts, one account and router limits.
 
 </details>
 
@@ -716,7 +719,7 @@ A work network can need more settings. Not verified: a run with a registry proxy
 | Case | Setting |
 | --- | --- |
 | Registry proxy for the images | `BASE_IMAGE` in `.env`, `PYTHON_IMAGE` and `GITLEAKS_IMAGE` in the environment. Keep each digest. |
-| Package proxy for the tests | `PIP_INDEX_URL` in the environment of `scripts/build.sh`. |
+| Package proxy for builds and tests | `PIP_INDEX_URL` in the environment of `scripts/build.sh`. |
 | TLS inspection: image pulls | With Podman: the CA in the trust store of the VM, through `podman machine ssh`. With Colima: the CA in `~/.docker/certs.d/`, then a restart of Colima. |
 | TLS inspection: the tests | `PIP_CA_FILE` with a CA bundle, for example `PIP_CA_FILE=.local/ca-bundle.pem scripts/build.sh test`. |
 | TLS inspection: the gateway at run time | `SSL_CERT_FILE` and a mount of the CA bundle, in an override file under `.local/`. |
@@ -740,7 +743,8 @@ They run as the user `1000:1000` with no capability. They reach each other by se
 
 | Layer | Content |
 | --- | --- |
-| Base image | The upstream LiteLLM 1.108.2 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
+| Base image | The upstream LiteLLM 1.109.1 image, pinned by index digest in `Dockerfile` and `docker-bake.hcl`. `BASE_IMAGE` names a mirror. |
+| Security dependencies | The `security-wheels` stage installs the hash-pinned packages in `image/security-requirements.txt`. The gateway stage removes their old modules and metadata. |
 | `image/hooks/` | The build copies these files to `/opt/litellm-gateway/image/hooks/`. `PYTHONPATH` names this directory. |
 | `image/routers/` | The build copies `quota_router.py` and `decision_router.py` to `/opt/litellm-gateway/image/routers/`. |
 
@@ -756,12 +760,13 @@ Warning: do not set `PYTHONPATH` in a Compose file. Another value turns the hook
 | `responses_tool_finish.py` | It preserves completion-only function arguments and gives a completed streamed chat answer with tool calls the finish reason `tool_calls`. |
 | `chatgpt_session_id.py` | It gives each request for a `chatgpt` deployment a stable session id, for the prompt cache. |
 | `chatgpt_auth_file.py` | It permits one ChatGPT account for each deployment. It is a prototype and off by default. |
+| `model_capability_ids.py` | It restores explicit GPT capability lookup keys on LiteLLM 1.109.1 without copying deployment prices. |
 
 The Responses-to-Chat bridge can drop function arguments that arrive only in completion events, observed with parallel Codex tool calls.
 `responses_tool_finish.py` emits those arguments once, from `response.function_call_arguments.done` or `response.output_item.done`.
 It keeps the call id, function name and sequential chat tool index. Calls that already delivered arguments stay unchanged.
 State belongs to each iterator and each call. Incomplete, failed and cancelled events stay unchanged. Completion events never end the stream early.
-Tests cover the hook with LiteLLM 1.101.0 and 1.108.2. Remove it when the pinned upstream passes the regression tests without it.
+Tests cover the hook with LiteLLM 1.101.0 and 1.109.1. Remove it when the pinned upstream passes the regression tests without it.
 `tests/test_responses_tool_finish.py` checks synthetic event sequences. [tests/README.md](tests/README.md) gives the pinned-image test commands.
 Not verified: live parallel tool calls with this argument recovery hook.
 
@@ -852,7 +857,9 @@ For those tests, the test cases supply the description. The table also includes 
 | `scripts/reauth-codex.sh` | Stops one account service, saves its token, logs in and starts it again; restores the old token after an incomplete login. |
 | `scripts/scan.sh` | Scans for secrets, host values and policy findings before publication or an image build. |
 | `scripts/setup-remotes.sh` | Creates or repairs the fetch-only `upstream` remote; `--check` changes nothing. |
+| `scripts/switch-codex-order.py` | Checks an existing router configuration, backs up its override and changes only the account order after confirmation. |
 | `scripts/sync-local-models.py` | Refreshes local model routes from endpoints and preserves cloud routes and the dedicated embedding route. |
+| `image/security-requirements.txt` | Pins security dependency versions and their wheel hashes. |
 | `scripts/verify.py` | Checks authentication and model listing; optionally sends a small chat request. |
 | `scripts/git-hooks/dispatch` | Runs the hook from the current working tree; refuses a missing tracked hook or scanner. |
 | `scripts/git-hooks/pre-commit` | Scans staged changes; first tests scanner rules when those rules change. |
@@ -878,6 +885,7 @@ For those tests, the test cases supply the description. The table also includes 
 | `tests/test_host_separation.py` | Keeps host values out of the tracked gateway examples and Compose files. |
 | `tests/test_image.sh` | Checks a built gateway image with temporary containers and `--network none`. |
 | `tests/test_login_copilot.sh` | Tests the Copilot login command offline with `--dry-run` and fake Docker. |
+| `tests/test_model_capability_ids.py` | Checks GPT capability registration while keeping opaque deployment ids and prices separate. |
 | `tests/test_model_info.py` | Checks model capability and price entries for a model absent from the cost map. |
 | `tests/test_promotion.sh` | Tests promotion with local bare remotes and simulated GitHub responses. |
 | `tests/test_promotion_scan.sh` | Tests promotion with the real scanner, a scratch clone and local bare remotes. |
@@ -890,6 +898,7 @@ For those tests, the test cases supply the description. The table also includes 
 | `tests/test_setup_remotes.sh` | Tests remote setup and tag fetching with a local repository in place of upstream. |
 | `tests/test_sol_capabilities.py` | Checks Codex Sol capability lookups with the pinned LiteLLM image and startup hooks. |
 | `tests/test_update_upstream.py` | Tests stable discovery and private update pull requests offline with temporary Git repositories. |
+| `tests/test_switch_codex_order.py` | Checks order changes, confirmation, backups and deployment refusals with simulated Docker and real Compose rendering. |
 | `tests/test_sync_local_models.py` | Checks that local-model refreshes keep the dedicated embedding route. |
 
 ### Environment variables and build arguments
@@ -943,13 +952,13 @@ Build inputs (`scripts/build.sh`, `docker-bake.hcl` and `Dockerfile`):
 | --- | --- | --- |
 | `REGISTRY` | Empty | Adds the registry prefix to the image name. |
 | `IMAGE_NAME` | `litellm-gateway` | Sets the image name. |
-| `LITELLM_VERSION` | `1.108.2` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
+| `LITELLM_VERSION` | `1.109.1` | Sets the tag and LiteLLM version label; change it with `BASE_IMAGE`. |
 | `PORTABLE_VERSION` | Script: Git release description; direct bake: `0` | Sets the portable part of the image version. |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | Sets the image tag. |
 | `BASE_IMAGE` | The pin in `docker-bake.hcl`, equal to `Dockerfile` | Selects the LiteLLM base image; a mirror must keep its digest. |
 | `BASE_NAME`, `BASE_DIGEST` | Bake splits `BASE_IMAGE` at `@` | Set the base-image labels as Dockerfile arguments, not separate bake inputs. |
-| `PYTHON_IMAGE` | The digest pin in `docker-bake.hcl`, equal to `Dockerfile` | Supplies Python only for the pytest install stage. |
-| `PIP_INDEX_URL` | `https://pypi.org/simple` | Selects the package index for the test target. |
+| `PYTHON_IMAGE` | The digest pin in `docker-bake.hcl`, equal to `Dockerfile` | Supplies Python for security dependencies and pytest. |
+| `PIP_INDEX_URL` | `https://pypi.org/simple` | Selects the package index for security dependencies and tests. |
 | `PIP_CA_FILE` | Not set | Supplies a readable CA bundle through the BuildKit secret `pip-ca`. Relative paths start at the caller directory. |
 | `SOURCE_URL` | Empty | Sets `org.opencontainers.image.source`; use the public repository URL. |
 | `PROVENANCE` | `false` | Sets the release attestation: `false`, `min` or `max`. |

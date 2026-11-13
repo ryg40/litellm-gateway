@@ -122,7 +122,7 @@ Warning: a push must not start from a branch other than `portable` or a `portabl
 | `BASE_IMAGE` | A mirror of the LiteLLM base image. Keep the same index digest. | `mirror.example.com/berriai/litellm@sha256:<digest>` |
 | `GITLEAKS_IMAGE` | A mirror of the scanner image. Pin it by digest. | `mirror.example.com/gitleaks:v8.28.0@sha256:<digest>` |
 | `PROVENANCE` | Provenance attestation of `release`: `false`, `min` or `max` | `false` |
-| `PYTHON_IMAGE` | A mirror of the Python image of the `test` target. Pin it by digest. | `mirror.example.com/library/python@sha256:<digest>` |
+| `PYTHON_IMAGE` | A mirror of the Python build image for security dependencies and tests. Pin it by digest. | `mirror.example.com/library/python@sha256:<digest>` |
 | `PIP_INDEX_URL` | A mirror of the package index for the `test` target | `https://pypi.example.com/simple` |
 | `PIP_CA_FILE` | A CA bundle for the package index, for TLS inspection | `/etc/ssl/certs/ca-bundle.pem` |
 
@@ -134,7 +134,9 @@ With `PROVENANCE=min` or `max` the index digest changes on each build. [image.md
 - Node.js, major version 24. The pipeline runtime of the CI system runs on it, for example the JavaScript actions of a hosted CI. `scripts/check-prereqs.sh` refuses another major version. No script of this repo runs Node.
 - Docker with Buildx. The `release` target needs the `docker-container` driver. Podman has no `bake` command, so the pipeline needs Docker.
 - Access to `ghcr.io` and `docker.io`, or mirrors through `BASE_IMAGE` and `GITLEAKS_IMAGE`.
-- The bake target `test` installs `pytest`, `pluggy` and `iniconfig` from PyPI, or from `PIP_INDEX_URL`. pip checks the hash of each file, also from a mirror.
+- Gateway builds install the packages in `image/security-requirements.txt`. The `test` target also installs `pytest`, `pluggy` and `iniconfig`.
+  Both use PyPI, or `PIP_INDEX_URL`. pip checks each file's hash, also from a mirror.
+- Cross-platform builds need native workers or emulation for the target-platform dependency cleanup.
 - With Docker-in-Docker, the checkout and `$TMPDIR` must have the same path for the job and for the Docker daemon. `scripts/scan.sh` mounts them.
 - The registry credential comes from the secret store of the CI system. It is not in the repo.
 
@@ -146,7 +148,7 @@ registry proxy and a package proxy, for example Artifactory. The variables of th
 | Source | Variable | Note |
 | --- | --- | --- |
 | LiteLLM base image | `BASE_IMAGE` | Keep the index digest of `Dockerfile`. `docker-bake.hcl` puts the name of the proxy into the label `org.opencontainers.image.base.name`. |
-| Python image of `test` | `PYTHON_IMAGE` | Keep the digest of `Dockerfile`. |
+| Python build image | `PYTHON_IMAGE` | Keep the digest of `Dockerfile`. |
 | Scanner image | `GITLEAKS_IMAGE` | Keep the digest of `scripts/scan.sh`. |
 | Package index of `test` | `PIP_INDEX_URL` | pip checks the hash of each file, also from a proxy. |
 
@@ -159,7 +161,7 @@ Not verified: a build through a proxy.
 A network with TLS inspection needs its CA in each client that makes an HTTPS request.
 
 - Image pulls: the Docker daemon of the runner needs the CA. This is a setting of the runner, not of the repo.
-- The `test` target: set `PIP_CA_FILE` to a PEM file that holds the public CAs and the CA of the network.
+- Security dependency and test stages: set `PIP_CA_FILE` to a PEM file that holds the public CAs and the CA of the network.
   `scripts/build.sh` gives the file to the build as the BuildKit secret `pip-ca`. The file does not go into a layer.
 
   ```sh

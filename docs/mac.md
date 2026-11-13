@@ -273,9 +273,9 @@ package proxy, for example Artifactory. Not verified: these steps with a registr
 | Image or index | Setting | Example |
 | --- | --- | --- |
 | LiteLLM base image | `--build-arg BASE_IMAGE=...` of `podman build`, or `BASE_IMAGE` in the environment of `scripts/build.sh` (Colima). Keep the same index digest. | `registry-proxy.example.com/ghcr/berriai/litellm@sha256:<digest>` |
-| Python image of the `test` target | `PYTHON_IMAGE` in the environment of `scripts/build.sh` (Colima). Keep the digest. | `registry-proxy.example.com/docker/library/python@sha256:<digest>` |
+| Python build image for security dependencies and tests | `PYTHON_IMAGE` in the environment of `scripts/build.sh` (Colima). Keep the digest. | `registry-proxy.example.com/docker/library/python@sha256:<digest>` |
 | Scanner image | `GITLEAKS_IMAGE` in the environment of `scripts/scan.sh`. Keep the digest. | `registry-proxy.example.com/docker/zricethezav/gitleaks:v8.28.0@sha256:<digest>` |
-| Package index of the `test` target | `PIP_INDEX_URL` in the environment of `scripts/build.sh` (Colima). pip checks the hash of each file. | `https://registry-proxy.example.com/api/pypi/pypi/simple` |
+| Package index for security dependencies and tests | `PIP_INDEX_URL` in the environment of `scripts/build.sh` (Colima). pip checks the hash of each file. | `https://registry-proxy.example.com/api/pypi/pypi/simple` |
 | Postgres image | No variable. Set the image in an override file under `.local/`. Keep the digest. | See below |
 
 The digests are in `Dockerfile` (`BASE_IMAGE`, `PYTHON_IMAGE`), `scripts/scan.sh` (`GITLEAKS_IMAGE`) and `compose.yaml` (`database`).
