@@ -1,6 +1,128 @@
 {
   "model_list": [
     {
+      "model_name": "codex1/gpt-6.2-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-sol",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6.2-sol",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 2.0e-06,
+        "output_cost_per_token": 1.0e-05,
+        "cache_read_input_token_cost": 1.0e-07,
+        "cache_creation_input_token_cost": 2.5e-06,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6.2-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-sol",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6.2-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-sol",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6.2-sol",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-sol",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
+      "model_name": "codex1/gpt-6.2-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-astra",
+        "api_base": "http://codex1:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "id": "gpt-6.2-astra",
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "input_cost_per_token": 8.0e-06,
+        "output_cost_per_token": 4.0e-05,
+        "cache_read_input_token_cost": 4.0e-07,
+        "cache_creation_input_token_cost": 1.0e-05,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000,
+        "supports_reasoning": true,
+        "supports_xhigh_reasoning_effort": true,
+        "supports_function_calling": true,
+        "supports_tool_choice": true
+      }
+    },
+    {
+      "model_name": "codex2/gpt-6.2-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-astra",
+        "api_base": "http://codex2:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex3/gpt-6.2-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-astra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      }
+    },
+    {
+      "model_name": "codex-auto/gpt-6.2-astra",
+      "litellm_params": {
+        "model": "openai/gpt-6.2-astra",
+        "api_base": "http://codex3:4000/v1",
+        "api_key": "os.environ/CODEX_MASTER_KEY",
+        "timeout": 570,
+        "stream_timeout": 570
+      },
+      "model_info": {
+        "allowed_fails_policy": {
+          "RateLimitErrorAllowedFails": 0
+        },
+        "cooldown_time": 60
+      }
+    },
+    {
       "model_name": "codex1/gpt-6.1-terra",
       "litellm_params": {
         "model": "openai/gpt-6.1-terra",
@@ -94,7 +216,7 @@
     {
       "model_name": "codex1/sol",
       "litellm_params": {
-        "model": "openai/gpt-6.1-sol",
+        "model": "openai/gpt-6.2-sol",
         "api_base": "http://codex1:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -127,7 +249,7 @@
     {
       "model_name": "codex1/astra",
       "litellm_params": {
-        "model": "openai/gpt-6-astra",
+        "model": "openai/gpt-6.2-astra",
         "api_base": "http://codex1:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -187,7 +309,7 @@
     {
       "model_name": "codex2/sol",
       "litellm_params": {
-        "model": "openai/gpt-6.1-sol",
+        "model": "openai/gpt-6.2-sol",
         "api_base": "http://codex2:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -217,7 +339,7 @@
     {
       "model_name": "codex2/astra",
       "litellm_params": {
-        "model": "openai/gpt-6-astra",
+        "model": "openai/gpt-6.2-astra",
         "api_base": "http://codex2:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -277,7 +399,7 @@
     {
       "model_name": "codex3/sol",
       "litellm_params": {
-        "model": "openai/gpt-6.1-sol",
+        "model": "openai/gpt-6.2-sol",
         "api_base": "http://codex3:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -307,7 +429,7 @@
     {
       "model_name": "codex3/astra",
       "litellm_params": {
-        "model": "openai/gpt-6-astra",
+        "model": "openai/gpt-6.2-astra",
         "api_base": "http://codex3:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -391,7 +513,7 @@
     {
       "model_name": "codex-auto/sol",
       "litellm_params": {
-        "model": "openai/gpt-6.1-sol",
+        "model": "openai/gpt-6.2-sol",
         "api_base": "http://codex3:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -439,7 +561,7 @@
     {
       "model_name": "codex-auto/astra",
       "litellm_params": {
-        "model": "openai/gpt-6-astra",
+        "model": "openai/gpt-6.2-astra",
         "api_base": "http://codex3:4000/v1",
         "api_key": "os.environ/CODEX_MASTER_KEY",
         "timeout": 570,
@@ -472,6 +594,18 @@
   "router_settings": {
     "max_fallbacks": 2,
     "fallbacks": [
+      {
+        "codex-auto/gpt-6.2-sol": [
+          "codex2/gpt-6.2-sol",
+          "codex1/gpt-6.2-sol"
+        ]
+      },
+      {
+        "codex-auto/gpt-6.2-astra": [
+          "codex2/gpt-6.2-astra",
+          "codex1/gpt-6.2-astra"
+        ]
+      },
       {
         "codex-auto/terra": [
           "codex2/terra",

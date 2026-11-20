@@ -1,11 +1,11 @@
 # Gateway image: the upstream LiteLLM image plus the hooks and routers of this repo.
 # docs/image.md describes the paths, the targets and the build command.
-# Cross-platform builds need emulation for the dependency metadata cleanup.
+# The final stage has no RUN step, so a multi-platform build needs no emulation.
 
-# LiteLLM 1.109.1, index digest for linux/amd64 and linux/arm64.
+# LiteLLM 1.110.2, index digest for linux/amd64 and linux/arm64.
 # A CI system can give a mirror of the same digest.
-ARG BASE_IMAGE=ghcr.io/berriai/litellm@sha256:11175975a3093e05e92faee2fe2fe3412a3ae2fcaa849eb0fe25d5f0d8bcb2e9
-# python:3.13-slim-bookworm, index digest. Installs security dependencies and pytest.
+ARG BASE_IMAGE=ghcr.io/berriai/litellm@sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035
+# python:3.13-slim-bookworm, index digest. Used only to install pytest for the test target.
 ARG PYTHON_IMAGE=docker.io/library/python@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26
 
 # Owner, mode and file times of the add-on files. This stage runs on the build
@@ -20,39 +20,16 @@ RUN --network=none chown -R 0:0 /out \
     && chmod -R a=rX /out \
     && find /out -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
-FROM --platform=$BUILDPLATFORM ${PYTHON_IMAGE} AS security-wheels
-COPY image/security-requirements.txt /tmp/security-requirements.txt
-ARG PIP_INDEX_URL=https://pypi.org/simple
-RUN --mount=type=secret,id=pip-ca,required=false \
-    if [ -s /run/secrets/pip-ca ]; then export PIP_CERT=/run/secrets/pip-ca; fi \
-    && pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes \
-        --no-compile --target /patched -r /tmp/security-requirements.txt
-
 FROM ${BASE_IMAGE} AS gateway
-# Remove old metadata as well as modules, so scanners see the installed versions.
-USER 0:0
-RUN --network=none python -S - <<'PY'
-import pathlib
-import shutil
-site = pathlib.Path('/app/.venv/lib/python3.13/site-packages')
-assert site.is_dir(), 'Review the upstream Python environment path'
-for name in ('filelock', 'oauthlib'):
-    package = site / name
-    if package.exists():
-        shutil.rmtree(package)
-    for metadata in site.glob(name + '-*.dist-info'):
-        shutil.rmtree(metadata)
-PY
-COPY --from=security-wheels --chown=0:0 /patched/ /app/.venv/lib/python3.13/site-packages/
 ARG BASE_IMAGE
-ARG LITELLM_VERSION=1.109.1
+ARG LITELLM_VERSION=1.110.2
 ARG PORTABLE_VERSION=0
 ARG REVISION=unknown
 ARG CREATED=1970-01-01T00:00:00Z
 ARG SOURCE_URL=
 # BASE_NAME and BASE_DIGEST split BASE_IMAGE; docker-bake.hcl sets them.
 ARG BASE_NAME=ghcr.io/berriai/litellm
-ARG BASE_DIGEST=sha256:11175975a3093e05e92faee2fe2fe3412a3ae2fcaa849eb0fe25d5f0d8bcb2e9
+ARG BASE_DIGEST=sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035
 
 # The layout under /opt/litellm-gateway mirrors the repo, so tests/conftest.py
 # finds the hooks at <root>/image/hooks in the test target.
@@ -62,11 +39,15 @@ COPY --from=addons /out/ /opt/litellm-gateway/
 # The hook directory is read-only, so Python cannot write bytecode there.
 # The local model cost map and no telemetry: a start does not depend on the
 # network or the day, also with docker run and without Compose.
+# Offline mode: LiteLLM uses its bundled copies instead of the catalogs and
+# checks that it fetches on its own, for example the Codex model catalog from
+# GitHub (docs/image.md lists them).
 ENV PYTHONPATH=/opt/litellm-gateway/image/hooks \
     PYTHONDONTWRITEBYTECODE=1 \
     LITELLM_LOCAL_MODEL_COST_MAP=True \
     LITELLM_TELEMETRY=False \
-    LITELLM_TELEMETRY_DISABLED=true
+    LITELLM_TELEMETRY_DISABLED=true \
+    LITELLM_OFFLINE_MODE=true
 
 LABEL org.opencontainers.image.title="litellm-gateway" \
       org.opencontainers.image.description="LiteLLM with the hooks and routers of this repo" \
@@ -111,8 +92,8 @@ COPY --from=pytest --chown=0:0 --chmod=a=rX /opt/pytest/ /opt/pytest/
 COPY --chown=0:0 --chmod=a=rX tests/ /opt/litellm-gateway/tests/
 COPY --chown=0:0 --chmod=a=rX config/ /opt/litellm-gateway/config/
 COPY --chown=0:0 --chmod=a=rX scripts/ /opt/litellm-gateway/scripts/
-# tests/test_host_separation.py reads the Compose files.
-COPY --chown=0:0 --chmod=a=rX compose.yaml compose.codex.yaml compose.copilot.yaml /opt/litellm-gateway/
+# tests/test_host_separation.py reads the Compose files; tests/test_model_capability_ids.py reads the pin.
+COPY --chown=0:0 --chmod=a=rX compose.yaml compose.codex.yaml compose.copilot.yaml Dockerfile /opt/litellm-gateway/
 ENV PYTHONPATH=/opt/litellm-gateway/image/hooks:/opt/pytest \
     HOME=/tmp
 WORKDIR /opt/litellm-gateway

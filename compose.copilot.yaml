@@ -2,7 +2,7 @@ name: litellm
 
 # GitHub Copilot service (docs/copilot.md). Start it with
 # docker compose -f compose.yaml -f compose.copilot.yaml up -d copilot
-# The provider github_copilot/ runs here and not in the gateway: its key refresh is a
+# The provider github_copilot/ runs here and not in the gateway: its address lookup is a
 # blocking call, and a stalled call stops only this service.
 # A YAML anchor does not cross files. The service is a copy of x-runtime in compose.yaml
 # without CHATGPT_TOKEN_DIR: keep the two equal.
@@ -44,7 +44,7 @@ services:
     volumes:
       # A host with its own model list sets COPILOT_CONFIG in .env (docs/copilot.md).
       - ${COPILOT_CONFIG:-./config/copilot.yaml}:/config/config.yaml:ro
-      # The service writes a new api-key.json here when the old one expires.
+      # The access-token of the login. From LiteLLM 1.110.0 the service only reads it.
       - ./state/copilot:/state/copilot
     # No published port. The gateway reaches the service on the project network.
     networks: [default]

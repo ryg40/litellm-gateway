@@ -17,7 +17,7 @@ variable "IMAGE_NAME" {
 
 # LiteLLM version of BASE_IMAGE. Change both together.
 variable "LITELLM_VERSION" {
-  default = "1.109.1"
+  default = "1.110.2"
 }
 
 # Version X.Y.Z of the portable-vX.Y.Z release tag of this repo, for example 0.1.0.
@@ -44,9 +44,9 @@ variable "SOURCE_URL" {
   default = ""
 }
 
-# Index digest of LiteLLM 1.109.1. A CI system can give a mirror: <mirror>/litellm@sha256:<digest>.
+# Index digest of LiteLLM 1.110.2. A CI system can give a mirror: <mirror>/litellm@sha256:<digest>.
 variable "BASE_IMAGE" {
-  default = "ghcr.io/berriai/litellm@sha256:11175975a3093e05e92faee2fe2fe3412a3ae2fcaa849eb0fe25d5f0d8bcb2e9"
+  default = "ghcr.io/berriai/litellm@sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035"
 }
 
 # Provenance attestation of the release: "false", "min" or "max". An attestation
@@ -116,7 +116,7 @@ target "test" {
   output   = ["type=cacheonly"]
 }
 
-# Both platforms. Target-platform dependency cleanup needs native execution or emulation.
+# Both platforms. The final stage has no RUN step, so no emulation is needed.
 # No output here: scripts/build.sh gives the registry or an OCI archive.
 # A multi-platform build needs a docker-container builder or the containerd image store.
 target "release" {

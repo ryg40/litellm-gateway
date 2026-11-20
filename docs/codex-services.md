@@ -165,15 +165,34 @@ Not verified: whether the old login stays valid at ChatGPT after a new login, so
 | `codex3/<model>` | Account 3 |
 | `codex-auto/<model>` | Account 3 first, then account 2, account 1 last. With two accounts: account 2, then account 1. |
 
-Each route exists for `luna`, `sol`, `astra` and `terra`, and for the full upstream IDs `gpt-6-luna`, `gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-astra` and `gpt-6.1-terra`.
-The short names `sol` and `terra` target `gpt-6.1-sol` and `gpt-6.1-terra`. A full ID is a pinned name and does not move.
+Each route exists for the short names `luna`, `sol`, `astra` and `terra`.
+Full upstream IDs are `gpt-6-luna`, `gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`, `gpt-6.2-sol` and `gpt-6.2-astra`.
+The short names `sol` and `astra` target `gpt-6.2-sol` and `gpt-6.2-astra`.
+The short names `luna` and `terra` target `gpt-6-luna` and `gpt-6.1-terra`.
+A short name follows the newest allowed version. A full ID is a pinned name and does not move.
 `gpt-6-terra` stays unconfigured: the new Terra route uses `gpt-6.1-terra`.
 Terra uses separate route and capability entries, like Sol, to preserve native Codex streaming.
 The gateway declares a conservative 272,000-token input limit; the API's larger 1,050,000-token window is unverified through ChatGPT Codex.
 Its standard API-equivalent prices are $1 input, $5 output, $0.05 cached input and $1.25 cache writes per million tokens.
 The cache-write price assumes 30-minute retention. Gateway prices are base-tier estimates; they do not apply long-context surcharges.
 Source: [OpenAI Terra model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-terra).
+GPT-6.2 Sol and Astra also use separate route and capability entries to preserve native Codex streaming.
+Both declare conservative limits of 272,000 input tokens and 128,000 output tokens.
+Their API-equivalent base prices per million tokens are:
+
+| Model | Input | Output | Cached input | Cache write |
+| --- | --- | --- | --- | --- |
+| `gpt-6.2-sol` | $2 | $10 | $0.10 | $2.50 |
+| `gpt-6.2-astra` | $8 | $40 | $0.40 | $10 |
+
+The API long-context tier costs more above 272,000 input tokens. The gateway applies no surcharge.
+Sources of the input, cached-input and output prices: [OpenAI Sol model documentation](https://developers.openai.com/api/docs/models/gpt-6.2-sol) and [OpenAI Astra model documentation](https://developers.openai.com/api/docs/models/gpt-6.2-astra).
+These pages do not give a cache-write price. The cache-write prices come from the OpenRouter listing.
 Check model availability for each account before you add a route.
+
+The cost that the gateway records for a non-stream request on an explicit route `codexN/*` depends on the version of the account service.
+With a 1.109.1 account service it is 0 (header `x-litellm-response-cost: 0.0`, no key spend); with a 1.110.2 account service it is the configured price.
+Streams and each `codex-auto/*` request get the configured price with both versions. A rehearsal with a stub provider observed this. Not traced: the cause.
 
 `codex-auto/*` uses the native fallback of LiteLLM. The three-account default is `codex3`, then `codex2`, then `codex1` (`max_fallbacks: 2`).
 With two accounts, the primary is `codex2` and the sole fallback is `codex1`.
@@ -183,16 +202,37 @@ Each `codex-auto` entry has `cooldown_time: 60` and `RateLimitErrorAllowedFails:
 
 Warning: a fallback cannot give allowance after all accounts reach their limits.
 
+### Responses ids across the 1.110.2 upgrade
+
+A Responses id that the gateway gives to a key with no user and no team belongs to that key from LiteLLM 1.110.2 on.
+
+- Such a key loses its conversations at the gateway step. An id that it got from a 1.109.1 gateway gets HTTP 403, "This response id has no associated owner", from the 1.110.2 gateway.
+  An id that it got from a 1.110.2 gateway gets the same 403 after a rollback of the gateway to 1.109.1. The client must start the conversation again with the full input.
+- A key with a user keeps its ids in both directions.
+- A direct call to an account service with its service key is not affected.
+- `codex-auto/*` refuses `previous_response_id` with each version ([Router behavior](#router-behavior)).
+
+A rehearsal with synthetic keys and a stub provider showed these results.
+
 ### Stable session id
 
 ChatGPT Codex selects a prompt-cache server by the `session_id` header of a request. A conversation keeps its cache only when each of its requests has the same id.
 The hook `image/hooks/chatgpt_session_id.py` sets that id in each proxy that has a `chatgpt` deployment. It applies to `codex-auto/*`, to the explicit routes `codex1/*`, `codex2/*` and `codex3/*`, and to the prototype of [codex-accounts.md](codex-accounts.md). It needs no setting.
 
-- Without a session id from the client, the id is `prefix-<hash>`. The hash covers the model, the system and developer messages (or `instructions`) and the first user message. A conversation that grows keeps its id. Another first user message gives another id.
-- A client id applies when the client sends it to the proxy that has the `chatgpt` deployment: an account service, or the gateway of the prototype. There the client sets its own id with `litellm_session_id` in the request body. The hook also honors `litellm_session_id` in `extra_body`, `session_id`, `metadata.session_id` and the header `x-litellm-session-id`. That proxy sends the client id to ChatGPT as it is.
+- Without a session id from the client, the id is `prefix-<hash>`. The hash covers the model and the first user message, and:
+  - for a chat request, each system and developer message. A later system or developer message therefore changes the id.
+  - for a Responses request, `instructions` and the `system` and `developer` input items before the first user item, in their order.
+    A later system or developer turn does not change the id. A request without such leading items keeps the id of the earlier hook.
+  A conversation that grows with user and assistant turns keeps its id. Another first user message gives another id.
+- A client id applies when the client sends it to the proxy that has the `chatgpt` deployment: an account service, or the gateway of the prototype. There the client sets its own id with `litellm_session_id` in the request body. The hook also honors `litellm_session_id` in the JSON key `extra_body` of the request body, `session_id`, `metadata.session_id` and the header `x-litellm-session-id`.
+  The JSON key `extra_body` is not the parameter `extra_body=` of the OpenAI SDK: the SDK merges the keys of that parameter into the top level of the body (checked with openai 2.33.0). That proxy sends the client id to ChatGPT as it is.
 - Through the gateway, the routes `codexN/*` and `codex-auto/*` are `openai/` deployments. Such a deployment drops a top-level `litellm_session_id` of the client.
   Without Chat-to-Responses conversion, it sends `extra_body.litellm_session_id` to the next proxy as a top-level `litellm_session_id`.
-  LiteLLM 1.109.1 can select that conversion for GPT chat requests with tools and `reasoning_effort=xhigh`.
+  Here `extra_body` is the JSON key of the request body. With the OpenAI SDK, that is `extra_body={"extra_body": {"litellm_session_id": ...}}`.
+  LiteLLM 1.109.1 and 1.110.2 can select that conversion for GPT chat requests with tools and `reasoning_effort=xhigh`.
+  With LiteLLM 1.110.2 the conversion sends the system prompt as a `system` input item and no `instructions` (1.109.1 sent `instructions`); the hash covers that item.
+  An isolated stub probe with LiteLLM 1.110.2 showed this request shape. A conversation that started on 1.109.1 gets a new id once, so its first request after the upgrade can miss the prompt cache.
+  The stub sees the `session_id` header, not the cache hits of the provider.
   The conversion drops the extra session field. A later tool-disabled request can retain it, so the two requests can use different ids.
   An isolated fake-provider check reproduced this limit. This release does not fix it or establish a real cache-hit percentage.
   It drops `metadata.session_id` on `/v1/chat/completions`, and passes `metadata` on to the next proxy on `/v1/responses`.

@@ -17,6 +17,25 @@ defines the targets, and `scripts/build.sh` starts a build.
   LiteLLM uses the cost map of the installed version and sends no telemetry, also with `docker run` or a
   CI job without Compose. From 1.108.0, `LITELLM_TELEMETRY_DISABLED` is the switch of the new telemetry
   package; `LITELLM_TELEMETRY` is the older name.
+- `LITELLM_OFFLINE_MODE=true`. Where LiteLLM fetches data on its own, it uses its bundled copy or skips the step
+  (`litellm_core_utils/offline_mode.py`, `is_offline_mode()`). Requests to configured providers and the device logins
+  are not affected. In LiteLLM 1.110.2 these modules read it:
+
+  | Module | Without offline mode | With offline mode |
+  | --- | --- | --- |
+  | `proxy/common_utils/codex_catalog_source.py` | `GET /v1/models?client_version=` fetches the Codex model catalog of that release from `raw.githubusercontent.com` (upstream PR 50318) | the bundled catalog |
+  | `anthropic_beta_headers_manager.py` | the Anthropic beta-header map from GitHub | the bundled map |
+  | `litellm_core_utils/get_model_cost_map.py` | the cost map from GitHub | the local map; `LITELLM_LOCAL_MODEL_COST_MAP=True` already forces it |
+  | `litellm_core_utils/get_blog_posts.py` | the blog feed of the UI | the local copy |
+  | `proxy/management_endpoints/policy_endpoints/endpoints.py` | guardrail policy templates from GitHub | the local backup |
+  | `proxy/public_endpoints/public_endpoints.py` | auto-router presets | the bundled presets |
+  | `proxy/ui_crud_endpoints/latest_release_endpoints.py` | the latest-release check of the UI | off |
+  | `proxy/auth/password_policy.py` | the breach check of UI login passwords at haveibeenpwned | off |
+  | `utils.py` | Hugging Face tokenizers for Cohere `command-r`, Llama 2 and Llama 3 names | none: `token_counter` uses tiktoken. The bundled Anthropic and DeepSeek tokenizers stay. |
+  | `llms/bedrock/count_tokens/kimi_k3.py` | the Kimi K3 token table from Hugging Face | the Hugging Face cache only |
+
+  No route of the example configurations uses these fetches. The breach check applies only to UI users with a
+  password. The source of 1.110.2 is the evidence; not verified in a run: each row except the first.
 - The files are owned by `root:root` with mode `0444`; the runtime user cannot change them.
 - The runtime user is `65532:65532` (`nonroot` of the Wolfi base). A Compose `user:` setting replaces it.
 - The layout under `/opt/litellm-gateway` mirrors the repo. `tests/conftest.py` finds
@@ -24,13 +43,16 @@ defines the targets, and `scripts/build.sh` starts a build.
 
 The image does not contain route configuration, `.env`, `secrets/`, `state/`,
 `.local/`, Git data, tests or documents. `.dockerignore` is an allowlist: it
-sends only `image/hooks/`, `image/routers/`, `image/security-requirements.txt` and, for the `test` target,
-`tests/`, `config/`, `scripts/`, `compose.yaml`, `compose.codex.yaml` and `compose.copilot.yaml` to the builder.
+sends only `image/hooks/`, `image/routers/` and, for the `test` target,
+`tests/`, `config/`, `scripts/`, `compose.yaml`, `compose.codex.yaml`, `compose.copilot.yaml` and `Dockerfile` to the builder.
 
-The `security-wheels` stage installs hash-pinned pure-Python fixes for `filelock` and `oauthlib`.
-The gateway removes the old packages and metadata before copying the fixed versions.
-This cleanup runs Python for the target platform, so cross-platform builds need emulation.
-The `addons` stage sets owner, mode and file times on the build platform.
+The final stage `gateway` has `COPY`, `ENV`, `LABEL`, `USER` and `ARG` steps only. The
+stage `addons` sets owner, mode and file times; it runs on the build platform
+(`FROM --platform=$BUILDPLATFORM`). A build for another platform therefore
+needs no emulation (QEMU).
+The image adds no Python package of its own. The 1.109.1 gateway image replaced `filelock` 3.32.7
+and `oauthlib` 4.0.0 of its base with hash-pinned 4.2.1 and 4.0.1. The 1.110.2 base image has
+`filelock` 4.2.4 and `oauthlib` 4.0.1, so the image no longer replaces them.
 
 ## Hooks
 
@@ -42,8 +64,8 @@ The `addons` stage sets owner, mode and file times on the build platform.
 | `litellm_versions.py` | The list `TESTED_VERSIONS` for all hooks. | No hook stays. |
 | `responses_tool_finish.py` | Preserves completion-only function arguments and gives a streamed chat answer with tool calls the finish reason `tool_calls`. | The pinned upstream bridge passes `tests/test_responses_tool_finish.py` without the hook. |
 | `chatgpt_session_id.py` | Gives a request for a `chatgpt` deployment a stable session id ([codex-services.md](codex-services.md), section "Stable session id"). `quota_router.py` imports `cache_session_id` from it. | Upstream gives a conversation without a client id a stable `session_id` header. Then keep `cache_session_id` for the router, or move it back into `quota_router.py`. |
-| `chatgpt_auth_file.py` | One guarded ChatGPT account for each deployment. Off by default ([codex-accounts.md](codex-accounts.md)). The reviewed 1.109.1 native path keeps the local security policy. | Upstream passes the path-confinement, client-header, refresh-isolation and no-login tests without this hook. |
-| `model_capability_ids.py` | Restores provider lookup for explicit GPT capability ids on 1.109.1, without copying deployment prices. | Upstream passes the model-info template tests without this hook. |
+| `chatgpt_auth_file.py` | One guarded ChatGPT account for each deployment. Off by default ([codex-accounts.md](codex-accounts.md)). The reviewed native paths of 1.109.1 and 1.110.2 (`REVIEWED_NATIVE_VERSIONS`) keep the local security policy. | Upstream passes the path-confinement, client-header, refresh-isolation and no-login tests without this hook. |
+| `model_capability_ids.py` | Restores provider lookup for explicit GPT capability ids on 1.109.1 and 1.110.2 (`VERSIONS`), without copying deployment prices. The 1.110.2 router still registers deployment ids with `add_to_provider_model_sets=False`. | Upstream passes the model-info template tests without this hook. |
 
 When you remove a hook, remove its file, its lines in `sitecustomize.py`, its test module in `tests/` and the name of that module in `HOOK_TESTS` of `tests/conftest.py`.
 `quota_router.py` needs `image/hooks` on `PYTHONPATH`, as the image sets it.
@@ -55,13 +77,13 @@ The entry point (`docker/prod_entrypoint.sh`) and the command of the base image 
 Gateway, with the usual LiteLLM arguments:
 
 ```
-docker run ... litellm-gateway:1.109.1-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
+docker run ... litellm-gateway:1.110.2-p0.1.0 --config /config/config.yaml --host 0.0.0.0 --port 4000
 ```
 
 Router (Compose: `entrypoint: ["python", "-m", "uvicorn"]`):
 
 ```
-docker run ... --entrypoint python litellm-gateway:1.109.1-p0.1.0 \
+docker run ... --entrypoint python litellm-gateway:1.110.2-p0.1.0 \
   -m uvicorn quota_router:app --app-dir /opt/litellm-gateway/image/routers --host 0.0.0.0 --port 4000
 ```
 
@@ -110,7 +132,8 @@ The router registers the deployment id of a `model_list` entry as a cost-map key
   have no `model_info` and use the registered key.
 - The entry with the id stands before the other entries for the same model. With another entry first,
   the proxy reports cost 0.0 for the model.
-- `router.get_model_ids()` returns the id. Not verified: the id in `/model/info` and in the spend logs.
+- `router.get_model_ids()` returns the id. A rehearsal with spend logs on showed `LiteLLM_SpendLogs.model_id` equal to
+  `model_info.id` (`gpt-6.2-sol`) on 1.109.1 and 1.110.2. Not verified: the id in `/model/info`.
 - The form covers explicit `model_list` entries. It does not cover a wildcard route.
 - The account service (`chatgpt/responses/<model>`) uses two entries, as the section `account` of the example shows.
   The route entry has `mode: responses`, `supports_native_streaming: true` and the flags, with no `id` and no
@@ -131,7 +154,7 @@ reports cost 0.0 after a reload of the cost map. The request still returns 200.
 `config/gateway.codex.example.yaml` has the prices in `model_info` of `codex1/gpt-6-luna` and `codex1/gpt-6-sol`.
 A host file without these two `model_info` blocks must not schedule or trigger `/reload/model_cost_map`.
 
-The current image suite runs against LiteLLM 1.109.1.
+The current image suite runs against LiteLLM 1.110.2.
 The version allowlist also retains earlier qualified releases.
 The account hook supports native auth-file forwarding while preserving the local security rules.
 Verify the pinned upstream image signature with the independently pinned Cosign key before deployment.
@@ -184,19 +207,19 @@ scripts/build.sh --builder gateway-builder --oci /tmp/gw.tar release
 | --- | --- | --- |
 | `REGISTRY` | empty | registry part of the tag |
 | `IMAGE_NAME` | `litellm-gateway` | image name |
-| `LITELLM_VERSION` | `1.109.1` | tag and label; change with `BASE_IMAGE` |
+| `LITELLM_VERSION` | `1.110.2` | tag and label; change with `BASE_IMAGE` |
 | `PORTABLE_VERSION` | `X.Y.Z` of the `portable-vX.Y.Z` tag | tag and label |
 | `TAG` | `<LITELLM_VERSION>-p<PORTABLE_VERSION>` | image tag |
-| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:11175975…` | upstream image; a mirror of the same digest is permitted |
-| `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | installs security dependencies and pytest |
-| `PIP_INDEX_URL` | `https://pypi.org/simple` | package index for security dependencies and tests; a mirror is permitted |
+| `BASE_IMAGE` | `ghcr.io/berriai/litellm@sha256:ef798594…` | upstream image; a mirror of the same digest is permitted |
+| `PYTHON_IMAGE` | `python:3.13-slim-bookworm` by digest | installs pytest for the `test` target |
+| `PIP_INDEX_URL` | `https://pypi.org/simple` | package index of the `test` target; a mirror is permitted |
 | `PIP_CA_FILE` | empty | `scripts/build.sh` only: CA bundle for the package index, given as the BuildKit secret `pip-ca` |
 | `SOURCE_URL` | empty | `org.opencontainers.image.source`; give the URL of the public repo |
 | `PROVENANCE` | `false` | provenance attestation of `release`: `false`, `min`, `max` |
 | `SOURCE_DATE_EPOCH` | commit time | file times and `created` label |
 
 Tag format: `<registry>/litellm-gateway:<litellm version>-p<portable version>`,
-for example `ghcr.io/owner/litellm-gateway:1.109.1-p0.1.0` for the tag `portable-v0.1.0`.
+for example `ghcr.io/owner/litellm-gateway:1.110.2-p0.1.0` for the tag `portable-v0.1.0`.
 Without a `portable-vX.Y.Z` tag at HEAD, the portable version is the `git describe` form,
 for example `0.1.0-3-gabc1234`, or `0-gabc1234` when no such tag exists.
 

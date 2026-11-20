@@ -1,17 +1,17 @@
 # Allowlist: exclude all, then permit only what the Dockerfile copies.
 # The gateway target copies image/hooks and image/routers.
-# The test target also copies tests, config, scripts, compose.yaml, compose.codex.yaml
-# and compose.copilot.yaml; they do not reach the gateway image.
+# The test target also copies tests, config, scripts, compose.yaml, compose.codex.yaml,
+# compose.copilot.yaml and Dockerfile; they do not reach the gateway image.
 *
 !image/hooks/
 !image/routers/
-!image/security-requirements.txt
 !tests/
 !config/
 !scripts/
 !compose.yaml
 !compose.codex.yaml
 !compose.copilot.yaml
+!Dockerfile
 # Never send bytecode or hidden files, also inside permitted directories.
 **/__pycache__
 **/*.pyc

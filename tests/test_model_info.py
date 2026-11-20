@@ -166,6 +166,33 @@ print("RESULT " + json.dumps(out, default=str))
 '''
 
 
+# Sends each model name of argv[1] a chat request with tools and a forced tool choice,
+# once without and once with reasoning_effort=xhigh. Nothing is mocked but the answer:
+# the installed LiteLLM version and the hooks of sitecustomize run as at proxy start.
+CHECK_DRIVER = r'''
+import json, sys
+from importlib.metadata import version
+from litellm import Router
+
+TOOLS = [{"type": "function", "function": {
+    "name": "ping", "description": "Return pong",
+    "parameters": {"type": "object", "properties": {}}}}]
+router = Router(model_list=json.loads(sys.argv[1]), num_retries=0)
+out = {"version": version("litellm"), "requests": {}}
+for name in router.get_model_names():
+    for effort in (None, "xhigh"):
+        extra = {"reasoning_effort": effort} if effort else {}
+        try:
+            router.completion(model=name, messages=[{"role": "user", "content": "ping"}],
+                              tools=TOOLS, tool_choice="required", mock_response="pong", **extra)
+            found = "ok"
+        except Exception as problem:
+            found = f"{type(problem).__name__}: {str(problem)[:160]}"
+        out["requests"][f"{name} reasoning_effort={effort}"] = found
+print("RESULT " + json.dumps(out, default=str))
+'''
+
+
 def token(claims):
     part = lambda data: base64.urlsafe_b64encode(json.dumps(data).encode()).rstrip(b"=").decode()
     return ".".join([part({"alg": "none"}), part(claims), "x"])
@@ -312,6 +339,22 @@ class ModelInfoTemplateTest(unittest.TestCase):
             with self.subTest(model_name=name):
                 self.assertGreater(result["before"][name], 0)
                 self.assertEqual(result["after"][name], result["before"][name])
+
+    def test_gpt_6_2_routes_pass_the_check_on_the_installed_version(self):
+        # The cost maps of 1.109.1 and 1.110.2 have no gpt-6.2-sol or gpt-6.2-astra row,
+        # so only model_capability_ids gives the bare ids their capabilities. No mock of
+        # the version: a gate that skips the pinned version fails here.
+        entries = [entry for entry in json.loads((ROOT / "config/gateway.codex.example.yaml").read_text())["model_list"]
+                   if entry["litellm_params"]["model"] in ("openai/gpt-6.2-sol", "openai/gpt-6.2-astra")]
+        names = {entry["model_name"] for entry in entries}
+        self.assertTrue({"codex1/gpt-6.2-sol", "codex1/sol", "codex-auto/sol",
+                         "codex1/gpt-6.2-astra", "codex1/astra", "codex-auto/astra"} <= names)
+        result = run(entries, CHECK_DRIVER)
+        expected = {f"{name} reasoning_effort={effort}" for name in names for effort in (None, "xhigh")}
+        self.assertEqual(set(result["requests"]), expected)
+        refused = {request: found for request, found in sorted(result["requests"].items()) if found != "ok"}
+        self.assertFalse(refused, f"LiteLLM {result['version']}: {len(refused)} of {len(expected)} refused, "
+                                  f"first {next(iter(refused.items()), None)}")
 
     def test_an_alias_entry_before_the_id_entry_gives_cost_zero(self):
         # The control for the order rule of the template.

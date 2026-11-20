@@ -74,6 +74,58 @@ model_list:
       supports_xhigh_reasoning_effort: true
       supports_function_calling: true
       supports_tool_choice: true
+  - model_name: gpt-6.2-sol
+    litellm_params:
+      model: chatgpt/responses/gpt-6.2-sol
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  # Register capabilities separately to preserve native Codex streaming.
+  - model_name: gpt-6.2-sol-capabilities
+    litellm_params:
+      model: openai/responses/gpt-6.2-sol
+      api_base: http://127.0.0.1:9/v1
+      api_key: not-a-route
+    model_info:
+      id: responses/gpt-6.2-sol
+      litellm_provider: openai
+      mode: responses
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  - model_name: gpt-6.2-astra
+    litellm_params:
+      model: chatgpt/responses/gpt-6.2-astra
+      timeout: 540
+      stream_timeout: 540
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
+  # Register capabilities separately to preserve native Codex streaming.
+  - model_name: gpt-6.2-astra-capabilities
+    litellm_params:
+      model: openai/responses/gpt-6.2-astra
+      api_base: http://127.0.0.1:9/v1
+      api_key: not-a-route
+    model_info:
+      id: responses/gpt-6.2-astra
+      litellm_provider: openai
+      mode: responses
+      supports_reasoning: true
+      supports_xhigh_reasoning_effort: true
+      supports_function_calling: true
+      supports_tool_choice: true
   - model_name: gpt-6-astra
     litellm_params:
       model: chatgpt/responses/gpt-6-astra

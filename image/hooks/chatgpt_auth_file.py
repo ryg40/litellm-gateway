@@ -28,10 +28,20 @@ Rules:
 - One authenticator per auth file. A refresh writes only its own file.
 - The auth file must be inside CHATGPT_AUTH_FILE_ROOT (default
   CHATGPT_TOKEN_DIR, then the upstream default directory).
+  The check resolves the real path; the open uses the name afterwards. The
+  root and its subdirectories must be under the exclusive control of the
+  operator (docs/codex-accounts.md).
 - No token value goes into a log line or an error message. The error for
   the client names the deployment and the account, not the path of the auth
   file; the gateway log names the path.
+- ChatGPT image generation (1.109.1 and later) gets the account headers of
+  the deployment again after its own header merge.
+- Subscription reporting (1.109.1 and later) reads the account id of a
+  deployment through the same guarded path, never through a path relative to
+  the working directory, and never through the process account while
+  CHATGPT_AUTH_FILE_REQUIRED is on.
 """
+from collections.abc import Mapping
 from importlib import import_module
 import inspect
 import json
@@ -47,6 +57,10 @@ SWITCH_ENV = "CHATGPT_AUTH_FILE_HOOK"
 REQUIRED_ENV = "CHATGPT_AUTH_FILE_REQUIRED"
 ROOT_ENV = "CHATGPT_AUTH_FILE_ROOT"
 _MAX_DEPTH = 32
+# Versions with native auth-file support whose chatgpt transport this hook was reviewed against.
+# 1.110.2 moved the authenticator choice into resolve_chatgpt_authenticator(); the hook replaces
+# both validate_environment() methods that call it, so the native choice does not run.
+REVIEWED_NATIVE_VERSIONS = ("1.109.1", "1.110.2")
 
 _authenticators = {}
 _authenticators_lock = threading.Lock()
@@ -94,7 +108,7 @@ def _reviewed_native_key():
     from litellm.types.router import GenericLiteLLMParams
 
     return (
-        version("litellm") == "1.109.1"
+        version("litellm") in REVIEWED_NATIVE_VERSIONS
         and KEY in GenericLiteLLMParams.model_fields
         and callable(getattr(authenticator, "get_cached_authenticator", None))
         and "auth_file" in inspect.signature(authenticator.Authenticator.__init__).parameters
@@ -277,6 +291,79 @@ def get_authenticator(real_path):
         if found is None:
             found = _authenticators[real_path] = _authenticator_class()(real_path)
         return found
+
+
+def subscription_account_id(litellm_params, native=None):
+    """Account id of a chatgpt deployment for subscription reporting. Reads no token for a request.
+
+    Upstream reads the auth file with get_cached_authenticator(), which resolves a
+    relative path against the working directory and not CHATGPT_AUTH_FILE_ROOT.
+    """
+    try:
+        from litellm.utils import with_named_credential
+        params = with_named_credential(litellm_params)
+    except ImportError:
+        params = litellm_params
+    value = params.get(KEY) if isinstance(params, Mapping) else auth_file_from(params)
+    if value in (None, ""):
+        if _required() or native is None:
+            return None
+        return native(litellm_params)
+    try:
+        return get_authenticator(resolve_auth_file(value)).read_account_id()
+    except AuthFileError:
+        return None
+
+
+def _install_image_headers():
+    """ChatGPT image generation (1.109.1 and later) builds its headers without sign_request().
+
+    Upstream calls the patched validate_environment(), then lets a client
+    chatgpt-account-id header replace the account id when the client sends no
+    credential. Pin both account headers of a guarded deployment again.
+    """
+    try:
+        images = import_module("litellm.images.main")
+    except ImportError:
+        return
+    original = getattr(images, "_chatgpt_image_headers", None)
+    if not callable(original) or getattr(original, "_gateway_auth_file", False):
+        return
+
+    def chatgpt_image_headers(model, params, headers, *args, **kwargs):
+        result = original(model, params, headers, *args, **kwargs)
+        if auth_file_from(params) is None:
+            return result
+        token, account_id = _account(model, params)
+        pinned = {"Authorization": "Bearer " + token}
+        if account_id:
+            pinned["ChatGPT-Account-Id"] = account_id
+        return dict(AccountHeaders(result, pinned))
+
+    chatgpt_image_headers._gateway_auth_file = True
+    # image_generation() looks the helper up as a module global at call time.
+    images._chatgpt_image_headers = chatgpt_image_headers
+
+
+def _install_subscription_reader():
+    try:
+        module = import_module("litellm.llms.subscription_accounts")
+    except ImportError:
+        return  # Versions before 1.109 have no subscription reporting.
+    resolvers = getattr(module, "SUBSCRIPTION_ACCOUNT_ID_RESOLVERS", None)
+    if not isinstance(resolvers, Mapping) or "chatgpt" not in resolvers:
+        return
+    native = resolvers["chatgpt"]
+    if getattr(native, "_gateway_auth_file", False):
+        return
+    from types import MappingProxyType
+
+    def chatgpt_account_id(litellm_params):
+        return subscription_account_id(litellm_params, native)
+
+    chatgpt_account_id._gateway_auth_file = True
+    # resolve_subscription_account_id() reads this module global at call time.
+    module.SUBSCRIPTION_ACCOUNT_ID_RESOLVERS = MappingProxyType({**resolvers, "chatgpt": chatgpt_account_id})
 
 
 def _deployment(model, litellm_params):
@@ -515,4 +602,6 @@ def install():
     ChatGPTConfig.sign_request = pinned_sign_request(ChatGPTConfig.sign_request)
     ChatGPTResponsesAPIConfig.validate_environment = responses_validate_environment
     ChatGPTResponsesAPIConfig.sign_request = pinned_sign_request(ChatGPTResponsesAPIConfig.sign_request)
+    _install_subscription_reader()
+    _install_image_headers()
     ChatGPTResponsesAPIConfig._gateway_auth_file = True

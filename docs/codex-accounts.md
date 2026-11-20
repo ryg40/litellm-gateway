@@ -7,9 +7,9 @@ This page is the second of two designs. The supported design runs one LiteLLM pr
 the services `codex1`, `codex2`, `codex3` and `codex-router` of `compose.codex.yaml` ([codex-services.md](codex-services.md)).
 This prototype is off by default and changes nothing in the supported design.
 
-LiteLLM 1.101.0 and 1.103.0 support one ChatGPT account for each process.
+LiteLLM 1.101.0, 1.103.0, 1.106.2, 1.106.4, 1.106.6 and 1.108.2 support one ChatGPT account for each process.
 The hook `image/hooks/chatgpt_auth_file.py` lets each `chatgpt` deployment name its own auth file.
-LiteLLM 1.109.1 has native `chatgpt_auth_file` transport support.
+LiteLLM 1.109.1 and 1.110.2 have native `chatgpt_auth_file` transport support.
 The optional hook keeps stricter path, client-header, refresh-isolation and no-login rules.
 Unreviewed native implementations still stop startup when the hook is enabled.
 
@@ -51,7 +51,7 @@ The gateway configuration of the test stack must name the `chatgpt` deployments 
 ### Guard with the hook off
 
 Older upstream versions ignore `chatgpt_auth_file` with the hook off and can start the process-account login.
-Version 1.109.1 supports the key, but the local guard still requires an explicit choice of the stricter account policy.
+Versions 1.109.1 and 1.110.2 support the key, but the local guard still requires an explicit choice of the stricter account policy.
 Guard: with the hook off, `sitecustomize.py` reads the configuration file of a proxy start
 (`--config`, `-c` or `CONFIG_FILE_PATH`) and its `include` files.
 When a deployment in `model_list` has the key, the interpreter stops at start with a message that names the switch.
@@ -72,6 +72,9 @@ With the hook off, those deployments use upstream behavior, which differs betwee
   An absolute path is permitted when it is inside the allowed directory.
 - The allowed directory is `CHATGPT_AUTH_FILE_ROOT`. When it is not set, it is `CHATGPT_TOKEN_DIR`.
   The hook refuses a path outside it, a path with `..`, and a symlink that leaves it.
+  The hook checks the real path and then opens the file by its name. Keep the allowed directory and each directory under it
+  under the exclusive control of the operator: a writer that replaces a directory or a symlink between the check and the open
+  can send the read to another file. A no-follow open of the last name alone would not prevent that. Not tested: such a race.
 - The hook keeps one authenticator for each auth file. A refresh writes only that file, atomically, with mode 0600.
 - `get_llm_provider()` reads no token. The token comes from the deployment in `validate_environment()`.
   Thus the gateway needs no process account.
@@ -87,8 +90,15 @@ With the hook off, those deployments use upstream behavior, which differs betwee
   LiteLLM merges `extra_headers` and `headers` of the request body into the request headers
   after `validate_environment()`. The hook returns a header object that sets the account values again after each merge,
   and `sign_request()` sets them once more as the last step before the request goes out.
-  Version 1.109.1 copies headers before signing; the hook re-reads the guarded deployment file at that step.
+  Versions 1.109.1 and 1.110.2 copy headers before signing; the hook re-reads the guarded deployment file at that step.
   Without that trusted deployment path or the original header object, `sign_request()` fails the request.
+  The guarantee covers Chat Completions, Responses and, from 1.109.1, ChatGPT image generation.
+  Image generation builds its headers without `sign_request()` and lets a client `chatgpt-account-id` header replace the
+  account id when the client sends no credential; the hook sets both account headers of the deployment again after that merge.
+- Subscription reporting (1.109.1 and later) reads the account id of each `chatgpt` deployment for the usage pages.
+  Upstream resolves a relative `chatgpt_auth_file` against the working directory. With the hook on, the read uses the
+  path rules above (inside the allowed directory), writes nothing, and never reads the process account while
+  `CHATGPT_AUTH_FILE_REQUIRED` is on. A path that the rules refuse gives no account id. This read gives no token to a request.
 - The proxy rejects a client request that has `chatgpt_auth_file` anywhere in the body with HTTP 400.
   `allow_client_side_credentials` does not change this.
   The check also reads a string as JSON text, because LiteLLM reads some fields (`metadata`, `extra_body`) from JSON text.
@@ -97,9 +107,16 @@ With the hook off, those deployments use upstream behavior, which differs betwee
   A key name in a dictionary is refused in the prompt fields too.
 - A value that nests deeper than 32 levels, or a JSON text that is too deep for the parser, gives HTTP 400.
   The check cannot read such a value, so it refuses it.
-- On a LiteLLM version that is not in `TESTED_VERSIONS` of `image/hooks/litellm_versions.py` (1.101.0 and 1.103.0),
+- On a LiteLLM version that is not in `TESTED_VERSIONS` of `image/hooks/litellm_versions.py`
+  (1.101.0, 1.103.0, 1.106.2, 1.106.4, 1.106.6, 1.108.2, 1.109.1 and 1.110.2),
   `sitecustomize.py` stops the Python interpreter at start, with the switch on or off.
   `chatgpt_auth_file.install()` checks the same list.
+  With the switch on, `install()` also stops when upstream has the key, except on the reviewed native support of 1.109.1 and 1.110.2
+  (`REVIEWED_NATIVE_VERSIONS`). In 1.110.2 the native choice of the authenticator is `resolve_chatgpt_authenticator()`;
+  the hook replaces both `validate_environment()` methods that call it.
+  The tests of `tests/test_chatgpt_auth_file.py` with this hook pass on 1.103.0, 1.109.1 and 1.110.2.
+  The release records of 1.106.2, 1.106.4, 1.106.6 and 1.108.2 ([branches.md](branches.md)) name passing image checks.
+  Not verified: the current hook on 1.101.0, 1.106.2, 1.106.4, 1.106.6 and 1.108.2. Their tests ran with the hook of their release.
 
 Warning: do not set `CHATGPT_AUTH_FILE_REQUIRED=false` in a gateway that uses the key.
 Then a code path that loses the key uses the process account and can start the device-code login.

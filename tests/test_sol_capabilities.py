@@ -58,19 +58,33 @@ class SolCapabilitiesTest(unittest.TestCase):
         both = [entry for entry in config["model_list"] if "gpt-6.1-sol" in entry["model_name"]]
         self.assertEqual(both, template["account"]["model_list"])
         ids = [entry["model_info"]["id"] for entry in config["model_list"] if "id" in entry["model_info"]]
-        self.assertEqual(ids, ["responses/gpt-6.1-sol", "responses/gpt-6.1-terra"])
+        self.assertEqual(ids, ["responses/gpt-6.1-sol", "responses/gpt-6.1-terra",
+                               "responses/gpt-6.2-sol", "responses/gpt-6.2-astra"])
 
     def test_account_terra_uses_native_streaming_and_separate_capabilities(self):
+        self.assert_account_capabilities("gpt-6.1-terra")
+
+    def test_account_sol_6_2_uses_native_streaming_and_separate_capabilities(self):
+        self.assert_account_capabilities("gpt-6.2-sol")
+
+    def test_account_astra_6_2_uses_native_streaming_and_separate_capabilities(self):
+        self.assert_account_capabilities("gpt-6.2-astra")
+
+    def assert_account_capabilities(self, model):
         config = yaml.safe_load((ROOT / "config/codex.yaml").read_text())
-        route = next(entry for entry in config["model_list"] if entry["model_name"] == "gpt-6.1-terra")
-        self.assertEqual(route["litellm_params"]["model"], "chatgpt/responses/gpt-6.1-terra")
+        route = next(entry for entry in config["model_list"] if entry["model_name"] == model)
+        self.assertEqual(route["litellm_params"]["model"], f"chatgpt/responses/{model}")
+        self.assertEqual(route["litellm_params"]["timeout"], 540)
+        self.assertEqual(route["litellm_params"]["stream_timeout"], 540)
         self.assertIs(route["model_info"]["supports_native_streaming"], True)
         self.assertNotIn("litellm_provider", route["model_info"])
         self.assertNotIn("id", route["model_info"])
         capability = next(entry for entry in config["model_list"]
-                          if entry["model_info"].get("id") == "responses/gpt-6.1-terra")
+                          if entry["model_info"].get("id") == f"responses/{model}")
+        self.assertEqual(capability["model_name"], f"{model}-capabilities")
         self.assertEqual(capability["model_info"]["litellm_provider"], "openai")
-        self.assertFalse(capability["litellm_params"]["model"].startswith("chatgpt/"))
+        self.assertEqual(capability["litellm_params"]["model"], f"openai/responses/{model}")
+        self.assertEqual(capability["litellm_params"]["api_base"], "http://127.0.0.1:9/v1")
         for entry in (route, capability):
             self.assertEqual(entry["model_info"]["mode"], "responses")
             for flag in ("supports_reasoning", "supports_xhigh_reasoning_effort",
@@ -84,7 +98,9 @@ class SolCapabilitiesTest(unittest.TestCase):
         entries = {entry["model_name"]: entry for entry in config["model_list"]}
         self.assertEqual(len(entries), len(config["model_list"]))
         for prefix in ("codex1", "codex2", "codex3", "codex-auto"):
-            self.assertEqual(entries[f"{prefix}/sol"]["litellm_params"]["model"], "openai/gpt-6.1-sol")
+            self.assertEqual(entries[f"{prefix}/sol"]["litellm_params"]["model"], "openai/gpt-6.2-sol")
+            self.assertEqual(entries[f"{prefix}/astra"]["litellm_params"]["model"], "openai/gpt-6.2-astra")
+            self.assertEqual(entries[f"{prefix}/gpt-6-astra"]["litellm_params"]["model"], "openai/gpt-6-astra")
             self.assertEqual(entries[f"{prefix}/gpt-6.1-sol"]["litellm_params"]["model"], "openai/gpt-6.1-sol")
             self.assertEqual(entries[f"{prefix}/gpt-6-sol"]["litellm_params"]["model"], "openai/gpt-6-sol")
         # One entry per model has the id and the prices; the others use the registered key.
@@ -92,7 +108,8 @@ class SolCapabilitiesTest(unittest.TestCase):
                    if "id" in entry.get("model_info", {})}
         self.assertEqual({name: info["id"] for name, info in with_id.items()},
                          {"codex1/gpt-6-luna": "gpt-6-luna", "codex1/gpt-6-sol": "gpt-6-sol",
-                          "codex1/gpt-6.1-sol": "gpt-6.1-sol", "codex1/gpt-6.1-terra": "gpt-6.1-terra"})
+                          "codex1/gpt-6.1-sol": "gpt-6.1-sol", "codex1/gpt-6.1-terra": "gpt-6.1-terra",
+                          "codex1/gpt-6.2-sol": "gpt-6.2-sol", "codex1/gpt-6.2-astra": "gpt-6.2-astra"})
         # The entry with the id stands before each other entry for the same model.
         # With an alias entry first, the router reports cost 0.0 for the model.
         first = {}
@@ -113,6 +130,25 @@ class SolCapabilitiesTest(unittest.TestCase):
                 for key in ("input_cost_per_token", "output_cost_per_token",
                             "cache_read_input_token_cost", "cache_creation_input_token_cost"):
                     self.assertAlmostEqual(info[key], litellm.model_cost[info["id"]][key], places=15)
+
+    def test_example_gateway_6_2_prices_limits_and_automatic_policy(self):
+        config = json.loads((ROOT / "config/gateway.codex.example.yaml").read_text())
+        entries = {entry["model_name"]: entry for entry in config["model_list"]}
+        for model, prices in (("gpt-6.2-sol", (2, 10, 0.1, 2.5)),
+                              ("gpt-6.2-astra", (8, 40, 0.4, 10))):
+            info = entries[f"codex1/{model}"]["model_info"]
+            for key, price in zip(("input_cost_per_token", "output_cost_per_token",
+                                   "cache_read_input_token_cost", "cache_creation_input_token_cost"), prices):
+                self.assertAlmostEqual(info[key], price / 1_000_000, places=15)
+            self.assertEqual(info["max_input_tokens"], 272000)
+            self.assertEqual(info["max_output_tokens"], 128000)
+            for prefix in ("codex1", "codex2", "codex3", "codex-auto"):
+                params = entries[f"{prefix}/{model}"]["litellm_params"]
+                self.assertEqual(params["model"], f"openai/{model}")
+                self.assertEqual(params["timeout"], 570)
+                self.assertEqual(params["stream_timeout"], 570)
+            self.assertEqual(entries[f"codex-auto/{model}"]["model_info"], {
+                "cooldown_time": 60, "allowed_fails_policy": {"RateLimitErrorAllowedFails": 0}})
 
     def test_generator_preserves_sol_aliases(self):
         spec = importlib.util.spec_from_file_location("enable_codex", ROOT / "scripts/enable-codex.py")
@@ -142,8 +178,10 @@ class SolCapabilitiesTest(unittest.TestCase):
             entries = json.loads(path.read_text())["model_list"]
             # The short alias follows the newest version; the full names stay pinned.
             for prefix in ("codex1", "codex2", "codex-auto"):
-                for alias, target in (("sol", "gpt-6.1-sol"), ("gpt-6-sol", "gpt-6-sol"),
-                                      ("gpt-6.1-sol", "gpt-6.1-sol")):
+                for alias, target in (("sol", "gpt-6.2-sol"), ("gpt-6-sol", "gpt-6-sol"),
+                                      ("gpt-6.1-sol", "gpt-6.1-sol"), ("gpt-6.2-sol", "gpt-6.2-sol"),
+                                      ("astra", "gpt-6.2-astra"), ("gpt-6-astra", "gpt-6-astra"),
+                                      ("gpt-6.2-astra", "gpt-6.2-astra")):
                     match = next(entry for entry in entries if entry["model_name"] == f"{prefix}/{alias}")
                     self.assertEqual(match["litellm_params"]["model"], f"openai/{target}")
             # LiteLLM reads the host file as YAML: each price must be a number there too.

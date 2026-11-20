@@ -22,14 +22,14 @@ docker run --rm -v /tmp/litellm-pytest:/pt python:3.13-slim-bookworm \
 
 Run the commands from the repository root.
 
-## LiteLLM 1.109.1 (pinned in `Dockerfile` and `docker-bake.hcl`)
+## LiteLLM 1.110.2 (pinned in `Dockerfile` and `docker-bake.hcl`)
 
 ```
 docker run --rm --network none --entrypoint python \
   -v "$PWD":/w:ro -v /tmp/litellm-pytest:/pt:ro \
   -e PYTHONPATH=/pt:/w/image/hooks -e PYTHONDONTWRITEBYTECODE=1 \
   -e LITELLM_LOCAL_MODEL_COST_MAP=True -w /w \
-  ghcr.io/berriai/litellm@sha256:11175975a3093e05e92faee2fe2fe3412a3ae2fcaa849eb0fe25d5f0d8bcb2e9 \
+  ghcr.io/berriai/litellm@sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035 \
   -m pytest -p no:cacheprovider -q tests
 ```
 
@@ -92,6 +92,8 @@ fake docker command. It starts no container. The checks differ for root and for 
 `tests/test_copilot_config.py` checks `config/copilot.yaml`, the configuration of the service `copilot`,
 and `config/gateway.copilot.example.yaml`, the gateway routes to the service.
 `COPILOT_PROPOSAL` names a host proposal file to check with the rules of the gateway routes.
+`tests/test_login_copilot_models.py` checks the models answer of `scripts/login-copilot.py` offline: a list of models,
+an empty list, answers of another form and an HTTP error. It needs the LiteLLM image; on a host without LiteLLM it is skipped.
 The two tests need `sh` and `python3` only; `unittest` is in the standard library.
 `tests/test_compose.sh` renders `compose.copilot.yaml`.
 

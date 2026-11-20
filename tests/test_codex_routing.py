@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = {"luna", "gpt-6-luna", "sol", "gpt-6-sol", "gpt-6.1-sol", "astra", "gpt-6-astra",
-          "terra", "gpt-6.1-terra"}
+          "terra", "gpt-6.1-terra", "gpt-6.2-sol", "gpt-6.2-astra"}
 TEMPLATE = json.loads((ROOT / "config/gateway.codex.example.yaml").read_text())
 SPEC = importlib.util.spec_from_file_location("enable_codex_routing", ROOT / "scripts/enable-codex.py")
 GENERATOR = importlib.util.module_from_spec(SPEC)
@@ -48,9 +48,10 @@ class NativeRoutingTests(unittest.TestCase):
             f"codex-auto/{model}": [f"{account}/{model}" for account in order[1:]] for model in MODELS})
         for model in MODELS:
             source = f"codex-auto/{model}"
-            if model in ("terra", "gpt-6.1-terra"):
-                for account in ["codex-auto", *order]:
-                    self.assertEqual(entries[f"{account}/{model}"]["litellm_params"]["model"], "openai/gpt-6.1-terra")
+            target = {"luna": "gpt-6-luna", "sol": "gpt-6.2-sol",
+                      "astra": "gpt-6.2-astra", "terra": "gpt-6.1-terra"}.get(model, model)
+            for account in ["codex-auto", *order]:
+                self.assertEqual(entries[f"{account}/{model}"]["litellm_params"]["model"], f"openai/{target}")
             self.assertEqual(entries[source]["litellm_params"]["api_base"], f"http://{order[0]}:4000/v1")
             for target in dict(fallbacks)[source]:
                 self.assertIn(target, entries)

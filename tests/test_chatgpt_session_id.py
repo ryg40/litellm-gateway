@@ -5,6 +5,7 @@ the headers of each request; the tests use no network and no real account.
 """
 import asyncio
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,7 @@ SYSTEM = {"role": "system", "content": "You are a probe."}
 FIRST = {"role": "user", "content": "first question"}
 ANSWER = {"role": "assistant", "content": "answer"}
 SECOND = {"role": "user", "content": "second question"}
+DEVELOPER = {"role": "developer", "content": "Answer briefly."}
 CHAT = {"model": "luna", "messages": [SYSTEM, FIRST]}
 RESPONSES = {"model": "luna", "instructions": "You are a probe.", "input": [FIRST]}
 # Each place where a client can put its session id, and the endpoint body it goes with.
@@ -73,6 +75,41 @@ class StepTests(unittest.TestCase):
     def test_same_id_for_a_conversation_that_grows(self):
         self.assertEqual(self.session(CHAT), self.session({**CHAT, "messages": [SYSTEM, FIRST, ANSWER, SECOND]}))
         self.assertEqual(self.session(RESPONSES), self.session({**RESPONSES, "input": [FIRST, ANSWER, SECOND]}))
+
+    def test_responses_system_input_items_are_in_the_prefix(self):
+        # 1.110.2 bridges a chat system prompt as an input item and sends no instructions.
+        bridged = {"model": "luna", "input": [SYSTEM, FIRST]}
+        other = {"model": "luna", "input": [{"role": "system", "content": "You are another probe."}, FIRST]}
+        developer = {"model": "luna", "input": [DEVELOPER, FIRST]}
+        self.assertNotEqual(self.session(bridged), self.session(other))
+        self.assertNotEqual(self.session(bridged), self.session({"model": "luna", "input": [FIRST]}))
+        self.assertNotEqual(self.session(bridged), self.session(developer))
+        self.assertEqual(self.session(bridged), self.session({**bridged, "input": [SYSTEM, FIRST, ANSWER, SECOND]}))
+        self.assertNotEqual(self.session(bridged), self.session({**bridged, "input": [SYSTEM, SECOND]}))
+
+    def test_responses_instruction_order_is_in_the_prefix(self):
+        self.assertNotEqual(self.session({"model": "luna", "input": [SYSTEM, DEVELOPER, FIRST]}),
+                            self.session({"model": "luna", "input": [DEVELOPER, SYSTEM, FIRST]}))
+        self.assertNotEqual(self.session({"model": "luna", "input": [DEVELOPER, FIRST]}),
+                            self.session({"model": "luna", "input": [FIRST, DEVELOPER]}))
+
+    def test_responses_later_instruction_turn_keeps_the_id(self):
+        for start in ([FIRST], [SYSTEM, FIRST]):
+            first = self.session({"model": "luna", "input": start})
+            for later in ([DEVELOPER], [ANSWER, DEVELOPER, SECOND], [ANSWER, SYSTEM, SECOND]):
+                with self.subTest(start=start, later=later):
+                    self.assertEqual(self.session({"model": "luna", "input": [*start, *later]}), first)
+
+    def test_responses_id_without_system_items_is_unchanged(self):
+        # The prefix of earlier versions: an existing conversation keeps its id.
+        for body in (RESPONSES, {"model": "luna", "input": "text input"},
+                     {"model": "luna", "input": [FIRST, DEVELOPER]},
+                     {"model": "luna", "instructions": "You are a probe.", "input": [FIRST, ANSWER, DEVELOPER, SECOND]}):
+            items = body["input"]
+            first = next((i for i in items if i.get("role") == "user"), None) if isinstance(items, list) else items
+            prefix = [body["model"], body.get("instructions"), first]
+            digest = hashlib.sha256(json.dumps(prefix, sort_keys=True, default=str).encode()).hexdigest()
+            self.assertEqual(hook.cache_session_id(body), "prefix-" + digest[:32])
 
     def test_other_id_for_another_first_user_message(self):
         self.assertNotEqual(self.session(CHAT), self.session({**CHAT, "messages": [SYSTEM, SECOND]}))

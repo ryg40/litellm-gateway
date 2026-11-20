@@ -107,6 +107,11 @@ assert "args" not in g["build"] or "BASE_IMAGE" not in g["build"]["args"], g["bu
 check "gateway keeps the configuration mount, no hook mount, no PYTHONPATH" "$base" "
 assert [v['target'] for v in s['gateway']['volumes']] == ['/config/config.yaml'], s['gateway']['volumes']
 $common"
+check "gateway stops with a grace period of 60 s; the other services keep the default" "$with_copilot" "
+assert s['gateway'].get('stop_grace_period') == '1m0s', s['gateway'].get('stop_grace_period')
+for name in ('database', 'codex1', 'codex2', 'codex3', 'codex-router', 'copilot'):
+    assert 'stop_grace_period' not in s[name], (name, s[name].get('stop_grace_period'))
+"
 check "GATEWAY_IMAGE and BASE_IMAGE come from the environment" "$pinned" "
 assert s['gateway']['image'] == '$digest', s['gateway']['image']
 assert s['gateway']['build']['args'] == {'BASE_IMAGE': 'mirror.example/litellm:1'}, s['gateway']['build']

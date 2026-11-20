@@ -166,6 +166,8 @@ Old personal identities or old wording can stop that check. Fix the publication 
 | `portable-v0.7.0` | `bb480d8c` | 2026-10-27 | LiteLLM 1.106.4; daily private Forgejo update requests; image, shell, Compose and publication checks pass |
 | `portable-v0.8.0` | `6df5924d` | 2026-10-31 | LiteLLM 1.106.6; fixed local routes stay during a model sync; 220 tests and 445 subtests pass; image, shell, Compose and publication checks pass |
 | `portable-v0.9.0` | `70e33b2f` | 2026-11-07 | LiteLLM 1.108.2; the image sets `LITELLM_TELEMETRY_DISABLED`; 237 tests and 455 subtests pass; image, shell, Compose and publication checks pass |
+| `portable-v0.10.0` | `4a345cc9` | 2026-11-13 | LiteLLM 1.109.1; security dependency pins and guarded Codex order switch; superseded by 0.10.1 because a tagged source breaks the promotion test fixture |
+| `portable-v0.10.1` | `13fc5c0b` | 2026-11-13 | Isolated promotion fixture; tagged-clone CI passes with 266 tests and 472 subtests; 22 image tests skip; source-only publication |
 
 Tags before the public root are private only and never leave the private server.
 

@@ -35,7 +35,7 @@ chmod +x "$work/docker"
 DOCKER=$work/docker LITELLM_IMAGE=example/gateway:test COPILOT_TOKEN_DIR=$work/tokens
 export DOCKER LITELLM_IMAGE COPILOT_TOKEN_DIR
 unset COPILOT_USER COPILOT_LOGIN_NETWORK COPILOT_LOGIN_NAME GITHUB_COPILOT_DEVICE_CODE_URL \
-    GITHUB_COPILOT_ACCESS_TOKEN_URL GITHUB_COPILOT_API_KEY_URL GITHUB_COPILOT_API_BASE 2>/dev/null || true
+    GITHUB_COPILOT_ACCESS_TOKEN_URL GITHUB_COPILOT_API_BASE 2>/dev/null || true
 
 expect_status "dry run of the login" 0 sh "$login" --dry-run
 expect "dry run prints one line" [ "$(wc -l <"$work/out")" -eq 1 ]

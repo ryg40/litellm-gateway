@@ -1,7 +1,8 @@
 # Configuration of the service copilot (compose.copilot.yaml, docs/copilot.md).
 # model_name is the alias that the gateway calls as litellm_proxy/<alias>.
-# The ids are placeholders from the LiteLLM 1.103.0 cost map: keep only the ids of
-# sh scripts/login-copilot.sh models. A short alias moves; a full name stays pinned.
+# The ids are placeholders: keep only the ids of sh scripts/login-copilot.sh models.
+# The cost map of the image lacks 9 of them; a stub test routes them at cost 0 (docs/copilot.md).
+# A short alias moves; a full name stays pinned.
 model_list:
   - model_name: opus
     litellm_params:

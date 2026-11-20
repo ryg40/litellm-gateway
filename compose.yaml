@@ -55,6 +55,10 @@ services:
       - ${GATEWAY_CONFIG:-./config/gateway.example.yaml}:/config/config.yaml:ro
     ports: ["${GATEWAY_PORT:-127.0.0.1:4321}:4000"]
     networks: [default]
+    # LiteLLM 1.110 writes spend at a graceful stop (delivery rows); the Docker default of
+    # 10 s kills the gateway under load and loses that spend. LiteLLM waits up to
+    # GRACEFUL_SHUTDOWN_TIMEOUT (30 s) for open requests, then flushes (docs/operations.md).
+    stop_grace_period: 60s
     depends_on:
       database:
         condition: service_healthy

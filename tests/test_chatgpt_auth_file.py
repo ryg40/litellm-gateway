@@ -632,6 +632,66 @@ class IsolationTests(HookCase):
         self.assertEqual(chat["Authorization"], "Bearer " + b.access)
         self.assertEqual(chat["ChatGPT-Account-Id"], b.account_id)
 
+    def test_image_headers_keep_the_deployment_account(self):
+        # Image generation merges client headers without sign_request(); a client
+        # account id must not replace the account of the deployment.
+        images = sys.modules.get("litellm.images.main") or importlib.import_module("litellm.images.main")
+        if not hasattr(images, "_chatgpt_image_headers"):
+            self.skipTest("this LiteLLM version has no ChatGPT image headers")
+        from litellm.types.router import GenericLiteLLMParams
+
+        a = Account(self.root, "a")
+        params = GenericLiteLLMParams.model_validate({"chatgpt_auth_file": "a/auth.json"})
+        headers = images._chatgpt_image_headers("gpt-image-fixture", params, {
+            "chatgpt-account-id": "client-account", "Authorization": "Bearer client", "X-Fixture": "kept"})
+        self.assertEqual(headers["Authorization"], "Bearer " + a.access)
+        self.assertEqual(headers["ChatGPT-Account-Id"], a.account_id)
+        self.assertEqual([k for k in headers if k.lower() in hook.FIXED_HEADERS], ["Authorization", "ChatGPT-Account-Id"])
+        self.assertEqual(headers["X-Fixture"], "kept")
+
+    @unittest.skipUnless(importlib.util.find_spec("litellm.llms.subscription_accounts"),
+                         "this LiteLLM version has no subscription reporting")
+    def test_subscription_account_id_reads_the_guarded_file(self):
+        # Subscription reporting reads metadata only, separate from inference. Upstream
+        # resolves a relative path against the working directory.
+        from litellm.llms.subscription_accounts import resolve_subscription_account_id
+
+        a = Account(self.root, "a")
+        decoy = Account(self.outside, "a")
+        before = a.file.read_bytes()
+        previous = os.getcwd()
+        os.chdir(self.outside)
+        self.addCleanup(os.chdir, previous)
+        self.assertEqual(resolve_subscription_account_id("chatgpt", {"chatgpt_auth_file": "a/auth.json"}),
+                         a.account_id)
+        self.assertNotEqual(a.account_id, decoy.account_id)
+        self.assertIsNone(resolve_subscription_account_id("chatgpt", {"chatgpt_auth_file": str(decoy.file)}))
+        self.assertIsNone(resolve_subscription_account_id("chatgpt", {"chatgpt_auth_file": "../outside/a/auth.json"}))
+        self.assertIsNone(resolve_subscription_account_id("chatgpt", {"chatgpt_auth_file": "missing/auth.json"}))
+        with patch.object(upstream_auth.Authenticator, "read_account_id",
+                          side_effect=AssertionError("the process account was read")):
+            self.assertIsNone(resolve_subscription_account_id("chatgpt", {}))
+        self.assertEqual(a.file.read_bytes(), before)
+
+    def test_native_authenticator_choice_does_not_run(self):
+        # 1.110.2 chooses the account in resolve_chatgpt_authenticator(). That choice uses the
+        # upstream Authenticator, which can start a login: the hook must not fall back to it.
+        Account(self.root, "a")
+        params = {"chatgpt_auth_file": "a/auth.json"}
+
+        def refuse(*args, **kwargs):
+            raise AssertionError("the native authenticator choice ran")
+
+        with contextlib.ExitStack() as stack:
+            for name in ("litellm.llms.chatgpt.chat.transformation", "litellm.llms.chatgpt.responses.transformation"):
+                for attribute in ("resolve_chatgpt_authenticator", "get_cached_authenticator"):
+                    if hasattr(sys.modules[name], attribute):
+                        stack.enter_context(patch.object(sys.modules[name], attribute, refuse))
+            stack.enter_context(patch.object(upstream_auth, "get_cached_authenticator", refuse, create=True))
+            ChatGPTResponsesAPIConfig().validate_environment({}, "gpt-6-luna", params)
+            ChatGPTConfig().validate_environment({}, "gpt-6-luna", [], {}, params, None, None)
+            ChatGPTConfig()._get_openai_compatible_provider_info("gpt-6-luna", None, None, "chatgpt", params)
+
     def test_refresh_writes_only_its_own_file(self):
         a, b = Account(self.root, "a", expired=True), Account(self.root, "b")
         fake = FakeRefresh([a, b])
@@ -831,13 +891,18 @@ class VersionTests(unittest.TestCase):
         def native_init(self, auth_file=None):
             pass
 
+        self.assertEqual(hook.REVIEWED_NATIVE_VERSIONS, ("1.109.1", "1.110.2"))
         with patch("importlib.metadata.version", return_value="1.109.1"), \
                 patch.object(upstream_auth, "get_cached_authenticator", create=True, new=lambda f: None), \
                 patch.dict(GenericLiteLLMParams.model_fields, {"chatgpt_auth_file": None}), \
                 patch.object(upstream_auth.Authenticator, "__init__", native_init):
             self.assertTrue(hook._reviewed_native_key())
-            with patch("importlib.metadata.version", return_value="1.109.2"):
-                self.assertFalse(hook._reviewed_native_key())
+            for reviewed in hook.REVIEWED_NATIVE_VERSIONS:
+                with self.subTest(version=reviewed), patch("importlib.metadata.version", return_value=reviewed):
+                    self.assertTrue(hook._reviewed_native_key())
+            for other in ("1.109.2", "1.110.0", "1.110.1", "1.110.3"):
+                with self.subTest(version=other), patch("importlib.metadata.version", return_value=other):
+                    self.assertFalse(hook._reviewed_native_key())
             with patch.object(upstream_auth, "get_cached_authenticator", new=None):
                 self.assertFalse(hook._reviewed_native_key())
             with patch.object(upstream_auth.Authenticator, "__init__", new=lambda self: None):

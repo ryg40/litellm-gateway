@@ -52,7 +52,6 @@ set -- run --rm --name "${COPILOT_LOGIN_NAME:-litellm-copilot-login}" \
   ${COPILOT_LOGIN_NETWORK:+--network "$COPILOT_LOGIN_NETWORK"} \
   ${GITHUB_COPILOT_DEVICE_CODE_URL:+-e GITHUB_COPILOT_DEVICE_CODE_URL} \
   ${GITHUB_COPILOT_ACCESS_TOKEN_URL:+-e GITHUB_COPILOT_ACCESS_TOKEN_URL} \
-  ${GITHUB_COPILOT_API_KEY_URL:+-e GITHUB_COPILOT_API_KEY_URL} \
   ${GITHUB_COPILOT_API_BASE:+-e GITHUB_COPILOT_API_BASE} \
   -v "$dir:/state/copilot" \
   -v "$repo/scripts/login-copilot.py:/login.py:ro" \

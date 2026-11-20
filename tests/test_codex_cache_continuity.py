@@ -30,9 +30,10 @@ from test_chatgpt_auth_file import Account, free_port, sse
 from test_chatgpt_session_id import Upstream, SYSTEM, FIRST, ANSWER, SECOND
 
 ROOT = Path(__file__).resolve().parents[1]
-ALIASES = {"luna": "gpt-6-luna", "gpt-6-luna": "gpt-6-luna", "sol": "gpt-6.1-sol",
+ALIASES = {"luna": "gpt-6-luna", "gpt-6-luna": "gpt-6-luna", "sol": "gpt-6.2-sol",
            "gpt-6.1-sol": "gpt-6.1-sol", "gpt-6-sol": "gpt-6-sol",
-           "astra": "gpt-6-astra", "gpt-6-astra": "gpt-6-astra"}
+           "astra": "gpt-6.2-astra", "gpt-6-astra": "gpt-6-astra",
+           "gpt-6.2-sol": "gpt-6.2-sol", "gpt-6.2-astra": "gpt-6.2-astra"}
 TOOLS = [{"type": "function", "function": {
     "name": "probe", "description": "Return a probe", "parameters": {"type": "object", "properties": {}}}}]
 
@@ -112,14 +113,36 @@ from litellm.proxy.proxy_cli import run_server
 @proxy_server.app.post("/test/router-state/{action}")
 def state(action: str):
     router = proxy_server.llm_router
-    cache = router.cooldown_cache.in_memory_cache
+    # 1.110 keeps cooldowns in a store: snapshot() gives keys deployment:<id>:cooldown
+    # and evict_local() takes the id. Earlier versions keep an in-memory cache with timestamps.
+    health = getattr(router, "health", None)
+    cooldowns = health().cooldowns if callable(health) else router.cooldown_cache
+    store = getattr(cooldowns, "cooldown_store", None)
     if action == "reset":
-        router.cache.flush_cache()
+        (health().store if callable(health) else router.cache).flush_cache()
         router.fail_calls.clear()
-        cache.flush_cache()
+        if store is None:
+            cooldowns.in_memory_cache.flush_cache()
+        else:
+            for key in list(store.snapshot()):
+                store.evict_local(key.removeprefix("deployment:").removesuffix(":cooldown"))
+            store.flush_local_counters()
     elif action == "expire":
-        for value in cache.cache_dict.values():
-            value["timestamp"] = time.time() - value["cooldown_time"] - 1
+        # Age each cooldown past its cooldown_time; the store's own expiry rule then
+        # drops it. Allowed-fail counters stay.
+        if store is None:
+            for value in cooldowns.in_memory_cache.cache_dict.values():
+                value["timestamp"] = time.time() - value["cooldown_time"] - 1
+        else:
+            aged = []
+            for key, value in list(store.snapshot().items()):
+                model_id = key.removeprefix("deployment:").removesuffix(":cooldown")
+                value = dict(value)
+                value["timestamp"] = time.time() - float(value["cooldown_time"]) - 1
+                store.put(model_id, value, float(value["cooldown_time"]))
+                aged.append(model_id)
+            if store.active_sync(aged):
+                raise AssertionError("an aged cooldown is still active")
     else:
         raise AssertionError("unknown test action")
     return {"ok": True}
@@ -357,11 +380,11 @@ sys.exit(run_server())
         self.upstream.status_by_account[self.accounts["codex2"].account_id] = 429
         requests, _ = self.post(self.gateways["native2"], self.body("sol"))
         self.assertEqual(self.names(requests), ["codex2", "codex1"])
-        expected = self.assert_boundary(requests, "gpt-6.1-sol")
+        expected = self.assert_boundary(requests, "gpt-6.2-sol")
         for grown in (False, True):
             requests, _ = self.post(self.gateways["native2"], self.body("sol", grown))
             self.assertEqual(self.names(requests)[-1], "codex1")
-            self.assert_boundary(requests, "gpt-6.1-sol", expected)
+            self.assert_boundary(requests, "gpt-6.2-sol", expected)
 
     def test_native_fallback_aliases_keep_provider_model_and_prefix(self):
         for account in ("codex3", "codex2"):
@@ -380,7 +403,7 @@ sys.exit(run_server())
         for keys in ({"litellm_session_id": "caller-session"}, {"metadata": {"session_id": "caller-session"}}):
             for grown in (False, True):
                 requests, _ = self.post(self.gateways["native2"], self.body("sol", grown, **keys))
-                expected = self.assert_boundary(requests, "gpt-6.1-sol")
+                expected = self.assert_boundary(requests, "gpt-6.2-sol")
                 self.assertNotEqual(expected, ["caller-session"])
 
     def test_quota_gateway_keeps_primary_and_header_for_repeated_turns(self):
@@ -398,7 +421,7 @@ sys.exit(run_server())
                 self.quota_app.state.router.quotas["codex3"].token_path = self.accounts["codex3"].file
                 requests, _ = self.post(self.gateways["quota"], self.body("sol", True))
                 self.assertEqual(self.names(requests), ["codex3"])
-                self.assert_boundary(requests, "gpt-6.1-sol")
+                self.assert_boundary(requests, "gpt-6.2-sol")
 
     def test_quota_429_cascade_keeps_tools_header_and_preempts_after_recovery(self):
         for account in ("codex3", "codex2"):
@@ -423,17 +446,17 @@ sys.exit(run_server())
         for grown in (False, False, True):
             requests, _ = self.post(self.gateways["quota"], self.body("astra", grown))
             self.assertEqual(self.names(requests), ["codex2"])
-            self.assert_boundary(requests, "gpt-6-astra")
+            self.assert_boundary(requests, "gpt-6.2-astra")
         self.usage["codex2"] = 100
         self.now[0] += quota_router.CACHE_SECONDS
         requests, _ = self.post(self.gateways["quota"], self.body("astra", True))
         self.assertEqual(self.names(requests), ["codex1"])
-        self.assert_boundary(requests, "gpt-6-astra")
+        self.assert_boundary(requests, "gpt-6.2-astra")
         self.usage.clear()
         self.now[0] += quota_router.CACHE_SECONDS
         requests, _ = self.post(self.gateways["quota"], self.body("astra", True))
         self.assertEqual(self.names(requests), ["codex3"])
-        self.assert_boundary(requests, "gpt-6-astra")
+        self.assert_boundary(requests, "gpt-6.2-astra")
 
     def test_quota_gateway_caller_id_is_dropped_but_prefix_stays_stable(self):
         for grown in (False, True):

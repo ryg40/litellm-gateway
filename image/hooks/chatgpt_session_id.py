@@ -1,4 +1,9 @@
-"""LiteLLM 1.101.0 and 1.103.0: a stable ChatGPT session id for prompt-cache affinity.
+"""A stable ChatGPT session id for prompt-cache affinity.
+
+LiteLLM versions: TESTED_VERSIONS of litellm_versions.py (1.101.0, 1.103.0,
+1.106.2, 1.106.4, 1.106.6, 1.108.2, 1.109.1 and 1.110.2). tests/test_chatgpt_session_id.py
+with this hook passes on 1.103.0, 1.109.1 and 1.110.2. Not verified: this hook on the
+other versions; their tests ran with the hook of their release.
 
 Codex routes a request to a prompt-cache server by its session_id header.
 Upstream sets the header from litellm_session_id, session_id or
@@ -53,6 +58,21 @@ def cache_session_id(payload):
         prefix.append(payload.get("instructions"))
         items = payload.get("input")
         if isinstance(items, list):
+            # In 1.110.2 the chat-to-Responses bridge sends a chat system prompt as an
+            # input item, not as instructions (1.109.1 sent instructions). Hash the
+            # system and developer items before the first user item, in their order.
+            # Without such items the prefix, and so the id, is the one of earlier
+            # versions; a later system or developer turn does not change it.
+            leading = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("role") == "user":
+                    break
+                if item.get("role") in ("system", "developer"):
+                    leading.append(item)
+            if leading:
+                prefix.append(leading)
             prefix.append(next((i for i in items if isinstance(i, dict) and i.get("role") == "user"), None))
         else:
             prefix.append(items)

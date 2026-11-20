@@ -7,9 +7,10 @@ The credential is an Anthropic API key or a separate OAuth token of a subscripti
 ## Permission
 
 LiteLLM 1.101.0 recognizes the prefixes of Anthropic OAuth tokens and sets a bearer authorization header.
-The image pins LiteLLM 1.109.1 (`Dockerfile`).
+The image pins LiteLLM 1.110.2 (`Dockerfile`).
 A historical check in the 1.108.2 image with a fake token and no network gave `authorization: Bearer` and no `x-api-key` for a key that starts with `sk-ant-oat`.
-Not verified: the same header check or a request to Anthropic with LiteLLM 1.109.1.
+The same check with `AnthropicConfig.validate_environment()` in the 1.110.2 image with a fake token and no network gave the same result.
+Not verified: a request to Anthropic with LiteLLM 1.110.2.
 This technical support does not give permission to use a subscription through a third-party tool.
 Use an Anthropic API key if your subscription does not permit this use.
 

@@ -1,10 +1,18 @@
-"""Preserve explicit GPT capability ids across the 1.109 router registration change."""
+"""Preserve explicit GPT capability ids across the 1.109 router registration change.
+
+From 1.109 the router registers a deployment id with add_to_provider_model_sets=False.
+1.110.2 keeps this in register_deployment_in_model_cost() of
+litellm/router_rust/surface/registry.py, which looks up litellm.register_model at call time.
+"""
 from functools import wraps
 from importlib.metadata import version
 
+# The versions with that registration whose model-info tests need this hook.
+VERSIONS = ("1.109.1", "1.110.2")
+
 
 def install():
-    if version("litellm") != "1.109.1":
+    if version("litellm") not in VERSIONS:
         return
     import litellm
 
